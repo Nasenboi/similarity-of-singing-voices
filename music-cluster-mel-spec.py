@@ -7,14 +7,16 @@ app = marimo.App(width="medium")
 @app.cell
 def _():
     from os import getenv, path
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
-    import librosa
-    from dotenv import load_dotenv
-    import utils
     from random import choice
+
+    import librosa
+    import marimo as mo
     import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    from dotenv import load_dotenv
+
+    import utils
 
     load_dotenv()
     return choice, getenv, librosa, mo, np, path, utils
@@ -39,9 +41,9 @@ def _(mo):
 @app.cell
 def _(getenv, path):
     RANDOM_STATE = 42
-    PROJECT_FOLDER = getenv("PROJECT_FOLDER")
-    METADATA_FOLDER = path.join(PROJECT_FOLDER, "fma_metadata")
-    AUDIO_FOLDER = path.join(PROJECT_FOLDER, "fma_large")
+    DATASET_FOLDER = getenv("DATASET_FOLDER")
+    METADATA_FOLDER = path.join(DATASET_FOLDER, "fma_metadata")
+    AUDIO_FOLDER = path.join(DATASET_FOLDER, "fma_large")
     TRACKS_PATH = path.join(METADATA_FOLDER, "tracks.csv")
     # GENRES_PATH = path.join(METADATA_FOLDER, "genres.csv")
     # FEATURES_PATH = path.join(METADATA_FOLDER, "features.csv")

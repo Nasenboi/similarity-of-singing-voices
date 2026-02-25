@@ -13,9 +13,9 @@ import utils
 load_dotenv()
 
 
-PROJECT_FOLDER = getenv("PROJECT_FOLDER")
-METADATA_FOLDER = path.join(PROJECT_FOLDER, "fma_metadata")
-AUDIO_FOLDER = path.join(PROJECT_FOLDER, "fma_large")
+DATASET_FOLDER = getenv("DATASET_FOLDER")
+METADATA_FOLDER = path.join(DATASET_FOLDER, "fma_metadata")
+AUDIO_FOLDER = path.join(DATASET_FOLDER, "fma_large")
 CSV_PATH = path.join(METADATA_FOLDER, "tracks_df_embedding_3D.csv")
 
 df = utils.load(CSV_PATH)

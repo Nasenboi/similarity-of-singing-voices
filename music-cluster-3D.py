@@ -10,20 +10,22 @@ app = marimo.App(
 @app.cell
 def _():
     from os import getenv, path
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
-    import librosa
-    from dotenv import load_dotenv
-    import utils
     from random import choice
+
+    import librosa
+    import marimo as mo
     import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
     import torch
     import torch.nn as nn
-    from transformers import Wav2Vec2Processor, Data2VecAudioModel
-    from tqdm import tqdm
     import umap
+    from dotenv import load_dotenv
     from sklearn.preprocessing import StandardScaler
+    from tqdm import tqdm
+    from transformers import Data2VecAudioModel, Wav2Vec2Processor
+
+    import utils
 
     load_dotenv()
     return (
@@ -57,9 +59,9 @@ def _(mo):
 @app.cell
 def _(getenv, path):
     RANDOM_STATE = 42
-    PROJECT_FOLDER = getenv("PROJECT_FOLDER")
-    METADATA_FOLDER = path.join(PROJECT_FOLDER, "fma_metadata")
-    AUDIO_FOLDER = path.join(PROJECT_FOLDER, "fma_large")
+    DATASET_FOLDER = getenv("DATASET_FOLDER")
+    METADATA_FOLDER = path.join(DATASET_FOLDER, "fma_metadata")
+    AUDIO_FOLDER = path.join(DATASET_FOLDER, "fma_large")
     TRACKS_PATH = path.join(METADATA_FOLDER, "tracks.csv")
     # GENRES_PATH = path.join(METADATA_FOLDER, "genres.csv")
     # FEATURES_PATH = path.join(METADATA_FOLDER, "features.csv")
