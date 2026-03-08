@@ -13,16 +13,16 @@ load_dotenv()
 
 DATASET_FOLDER = getenv("DATASET_FOLDER")
 CSV_FOLDER = getenv("CSV_FOLDER")
-CSV_PATH = path.join(CSV_FOLDER, "triplet_df_voiced_umap2D.csv")
+CSV_PATH = path.join(CSV_FOLDER,"SpeechBrain", "triplet_df_umap3D.csv")
 AUDIO_FOLDER = path.join(DATASET_FOLDER, "fma_large")
 VOCAL_AUDIO_FOLDER = path.join(DATASET_FOLDER, "fma_large_stems")
 df = pd.read_csv(CSV_PATH)
 
-color_columns = ["genre_top", "creation_date", "release_date"]
+color_columns = ["genre_top", "creation_date", "release_date", "artist"]
 hover_data = ["genre_top", "artist", "album", "track_id"]
 
-audio_choice = ["audio_path", "vocal_audio_path"]  # columns containing file paths
-is2D = True  # set to False for 3D
+audio_choice = ["audio_path", "vocal_audio_path"] # columns containing file paths
+is2D = False  # set to False for 3D
 
 def file_name_to_url(file_name):
     if file_name.startswith(VOCAL_AUDIO_FOLDER):

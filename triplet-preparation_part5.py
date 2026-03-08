@@ -36,16 +36,16 @@ def _(os):
 @app.cell
 def _(CSV_FOLDER, os, pd):
     triplet_df = pd.read_csv(
-        os.path.join(CSV_FOLDER, "triplet_df_voiced.csv"), index_col="track_id"
+        os.path.join(CSV_FOLDER, "triplet_df_checked_all.csv"), index_col="track_id"
     )
-    triplet_df
+    triplet_df[triplet_df.is_voiced]
     return (triplet_df,)
 
 
 @app.cell
 def _(CSV_FOLDER, os, pd):
     features_df = pd.read_csv(
-        os.path.join(CSV_FOLDER, "triplet_df_voiced_features_mfcc.csv"),
+        os.path.join(CSV_FOLDER, "triplet_df_checked_features_mfcc2.csv"),
         index_col="track_id",
     )
     features_df
@@ -81,12 +81,12 @@ def _(StandardScaler, features_df):
 @app.cell
 def _(features_df, pd, umap, voice_features_scaled):
     reducer = umap.UMAP(
-        n_components=2, n_neighbors=5, min_dist=0.1, metric="cosine"
+        n_components=3, n_neighbors=5, min_dist=0.1, metric="cosine"
     )
     umap_embeddings = reducer.fit_transform(voice_features_scaled)
 
     embedding_df = pd.DataFrame(
-        umap_embeddings, index=features_df.index, columns=["UMAP1", "UMAP2"]
+        umap_embeddings, index=features_df.index, columns=["UMAP1", "UMAP2", "UMAP3"]
     )
     return (embedding_df,)
 

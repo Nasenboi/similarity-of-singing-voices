@@ -34,9 +34,9 @@ def _(os):
 @app.cell
 def _(CSV_FOLDER, os, pd):
     triplet_df = pd.read_csv(
-        os.path.join(CSV_FOLDER, "triplet_df_voiced.csv"), index_col="track_id"
+        os.path.join(CSV_FOLDER, "triplet_df_checked_all.csv"), index_col="track_id"
     )
-    triplet_df
+    triplet_df = triplet_df[triplet_df.is_voiced]
     return (triplet_df,)
 
 
@@ -62,7 +62,7 @@ def _(lr, np):
     AUDIO_LENGTH_S = 30
     MFCC_SETTINGS = {
         "n_mels": 128,
-        "n_mfcc": 20,
+        "n_mfcc": 13,
         "sr": SAMPLE_RATE,
         "fmax": SAMPLE_RATE / 2,
         "fmin": 80,
@@ -77,27 +77,30 @@ def _(lr, np):
             y, sr = lr.load(audiopath)
             hop_length = MFCC_SETTINGS["hop_length"]
 
-            # 1. Compute RMS energy per frame (same hop_length as MFCCs)
-            rms = lr.feature.rms(y=y, hop_length=hop_length)[0]  # shape: (T,)
+            # 1. Compute RMS energy per frame
+            rms = lr.feature.rms(y=y, hop_length=hop_length)[0]
 
-            # 2. Simple energy threshold: 1% of the maximum RMS
+            # 2. Energy threshold
             thresh = ENERGY_THESHOLD * np.max(rms)
             voiced_frames = rms > thresh
 
-            # 3. Check if voiced proportion is sufficient (≥10% of frames)
+            # 3. Check voiced proportion
             total_frames = len(rms)
             voiced_ratio = np.sum(voiced_frames) / total_frames
             if voiced_ratio < MIN_VOICE_THRESHOLD:
-                #print(voiced_ratio, rms)
-                return None  # too much silence
+                return None
 
             # 4. Compute MFCCs
             mfccs = lr.feature.mfcc(y=y, **MFCC_SETTINGS)
 
             feature_vector = []
-            for coeff_sequence in mfccs:
+            for b, coeff_sequence in enumerate(mfccs):
                 voiced_vals = coeff_sequence[voiced_frames]
-                feature_vector.extend([np.mean(voiced_vals), np.std(voiced_vals)])
+                feature_vector.append(np.mean(voiced_vals))
+                feature_vector.append(np.std(voiced_vals))
+                if b < 4:
+                    feature_vector.append(np.percentile(voiced_vals, 20))
+                    feature_vector.append(np.percentile(voiced_vals, 80))
 
             return feature_vector
         except Exception as e:
@@ -106,10 +109,14 @@ def _(lr, np):
 
 
     n_mfcc = MFCC_SETTINGS["n_mfcc"]
-    stats = ["mean", "std"]
-    FEATURE_NAMES = [
-        f"feature_MFCC.{b + 1}_{s}" for b in range(n_mfcc) for s in stats
-    ]
+    FEATURE_NAMES = []
+    for b in range(n_mfcc):
+        if b < 4:
+            stats = ["mean", "std", "20percentile", "80percentile"]
+        else:
+            stats = ["mean", "std"]
+        for s in stats:
+            FEATURE_NAMES.append(f"feature_MFCC.{b+1}_{s}")
     return FEATURE_NAMES, getMFCCFeatures
 
 

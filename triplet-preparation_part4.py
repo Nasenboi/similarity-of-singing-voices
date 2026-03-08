@@ -35,20 +35,9 @@ def _(os):
 
 @app.cell
 def _(CSV_FOLDER, os, pd):
-    features_df = pd.read_csv(
-        os.path.join(CSV_FOLDER, "triplet_df_voiced_features_mfcc.csv"), index_col="track_id"
-    )
-    features_df
-    return (features_df,)
-
-
-@app.cell
-def _(CSV_FOLDER, features_df, os, pd):
     triplet_df = pd.read_csv(
-        os.path.join(CSV_FOLDER, "triplet_df_voiced.csv"), index_col="track_id"
+        os.path.join(CSV_FOLDER, "triplet_df_checked5.csv"), index_col="track_id"
     )
-    triplet_df["is_voiced_check"] = False
-    triplet_df = triplet_df[triplet_df.index.isin(features_df.index)]
     triplet_df
     return (triplet_df,)
 
@@ -75,7 +64,9 @@ def _(getVocalPath, triplet_df):
 @app.cell
 def _(triplet_df):
     if triplet_df["is_voiced_check"].eq(False).any():
-        first_unchecked = triplet_df[triplet_df["is_voiced_check"] == False].index[0]
+        first_unchecked = triplet_df[triplet_df["is_voiced_check"] == False].index[
+            0
+        ]
         first_unchecked = triplet_df.index.get_loc(first_unchecked)
     else:
         first_unchecked = 0
@@ -87,14 +78,17 @@ def _(triplet_df):
 def _(first_unchecked, mo, triplet_df):
     get_idx, set_idx = mo.state(first_unchecked)
 
+
     def setCurrentIdx(step: int):
         set_idx(lambda value: max(0, min(len(triplet_df) - 1, value + step)))
+
 
     def answerAndGoOn(isVoiced):
         track_id = triplet_df.iloc[get_idx()].name
         triplet_df.loc[track_id, "is_voiced"] = isVoiced
         triplet_df.loc[track_id, "is_voiced_check"] = True
         setCurrentIdx(1)
+
 
     increment_button = mo.ui.button(
         on_click=lambda value: setCurrentIdx(1), label="+"
@@ -115,11 +109,11 @@ def _(first_unchecked, mo, triplet_df):
         mo.md(
             """
             **Navigation**
-        
+
             {decbtn} {incbtn}
 
             **Voiced?**
-        
+
             {falsebtn} {truebtn}
             """
         )
@@ -147,7 +141,7 @@ def _(get_idx, lr, mo, triplet_df):
 
     y, sr = lr.load(current_path)
 
-    print("Progress :", f"{checked_count}/{max_count} ({perc_done})")
+    print("Progress :", f"{checked_count}/{max_count} ({perc_done}%)")
     print("Index    :", row.name)
     print("Artist   :", row.artist)
     print("Genre    :", row.genre_top)
@@ -155,13 +149,13 @@ def _(get_idx, lr, mo, triplet_df):
     print("Checked  :", row.is_voiced_check)
 
 
-    mo.audio(src=y, rate=sr)
+    mo.audio(src=y, rate=sr * 1.5)
     return
 
 
 @app.cell
-def _():
-    #triplet_df
+def _(triplet_df):
+    triplet_df
     return
 
 
