@@ -163,3 +163,4 @@ cython_debug/
 *.png
 *.csv
 archive
+/src/FMA
