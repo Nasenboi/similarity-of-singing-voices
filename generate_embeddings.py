@@ -78,7 +78,7 @@ def _():
 
 @app.cell
 def _(SAMPLE_RATE, librosa, np, torch):
-    def getTrimmedAudio(audiopath: str) -> torch.tensor:
+    def getTrimmedAudio(audiopath: str) -> torch.Tensor:
         """Returns an audio sample array, with the silent parts cut out
 
         Args:
