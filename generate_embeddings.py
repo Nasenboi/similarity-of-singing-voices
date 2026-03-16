@@ -17,10 +17,12 @@ def _(mo):
 @app.cell
 def _():
     # Initial imports
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
     import os
+
+    import marimo as mo
+    import numpy as np
+    import pandas as pd
+
     from src.globals import CSV_FOLDER
     return CSV_FOLDER, mo, np, os, pd
 
@@ -78,7 +80,7 @@ def _():
 
 @app.cell
 def _(SAMPLE_RATE, librosa, np, torch):
-    def getTrimmedAudio(audiopath: str) -> torch.Tensor:
+    def get_trimmed_audio(audiopath: str) -> torch.Tensor:
         """Returns an audio sample array, with the silent parts cut out
 
         Args:
@@ -93,11 +95,11 @@ def _(SAMPLE_RATE, librosa, np, torch):
         for start, end in intervals:
             trimmed_parts.append(y[..., start:end])
         return torch.from_numpy(np.concatenate(trimmed_parts, axis=-1))
-    return (getTrimmedAudio,)
+    return (get_trimmed_audio,)
 
 
 @app.cell
-def _(df, encoder, getTrimmedAudio, mask, np):
+def _(df, encoder, get_trimmed_audio, mask, np):
     # Generate the embeddings
     # 1. apply mask to the dataframe
     # 2. trim the audio file and get the sample array
@@ -107,7 +109,7 @@ def _(df, encoder, getTrimmedAudio, mask, np):
     embeddings = np.stack(
         df[mask]
         .vocal_audio_path.apply(
-            lambda path: encoder.encode_waveform(getTrimmedAudio(path))
+            lambda path: encoder.encode_waveform(get_trimmed_audio(path))
             .cpu()
             .numpy()
             .squeeze()
