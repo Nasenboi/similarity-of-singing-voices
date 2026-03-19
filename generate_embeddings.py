@@ -24,7 +24,8 @@ def _():
     import pandas as pd
 
     from src.globals import CSV_FOLDER
-    return CSV_FOLDER, mo, np, os, pd
+    from src.utils import get_trimmed_audio
+    return CSV_FOLDER, get_trimmed_audio, mo, np, os, pd
 
 
 @app.cell(hide_code=True)
@@ -75,27 +76,7 @@ def _():
 @app.cell
 def _():
     SAMPLE_RATE = 24_000
-    return (SAMPLE_RATE,)
-
-
-@app.cell
-def _(SAMPLE_RATE, librosa, np, torch):
-    def get_trimmed_audio(audiopath: str) -> torch.Tensor:
-        """Returns an audio sample array, with the silent parts cut out
-
-        Args:
-            audiopath (str): The path to the audio file
-
-        Returns:
-            torch.tensor: The audio sample array
-        """
-        y, sr = librosa.load(audiopath, sr=SAMPLE_RATE, mono=True)
-        intervals = librosa.effects.split(y)
-        trimmed_parts = []
-        for start, end in intervals:
-            trimmed_parts.append(y[..., start:end])
-        return torch.from_numpy(np.concatenate(trimmed_parts, axis=-1))
-    return (get_trimmed_audio,)
+    return
 
 
 @app.cell
