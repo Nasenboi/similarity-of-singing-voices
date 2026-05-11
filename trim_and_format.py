@@ -79,10 +79,18 @@ def _(pd, tracks_df):
             "track_id": tracks_df.index,
             "genre_top": tracks_df["track", "genre_top"],
             "artist": tracks_df["artist", "name"],
+            "artist_id": tracks_df["artist", "id"],
+            "members": tracks_df["artist", "members"],
+            "location": tracks_df["artist", "location"],
             "album": tracks_df["album", "title"],
             "creation_date": tracks_df["track", "date_created"],
             "release_date": tracks_df["album", "date_released"],
             "song_path": tracks_df["song_path"],
+            "artist_website": tracks_df["artist", "website"],
+            "license": tracks_df["track", "license"],
+            "publisher": tracks_df["track", "publisher"],
+            "lyricist": tracks_df["track", "lyricist"],
+            "title": tracks_df["track", "title"]
         }
     )
     fma.set_index("track_id", inplace=True)

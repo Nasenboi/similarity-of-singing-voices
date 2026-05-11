@@ -15,7 +15,7 @@ def _():
 
     from src.globals import CSV_FOLDER, DATASET_FOLDER
     from src.utils import get_trimmed_audio
-    return CSV_FOLDER, DATASET_FOLDER, get_trimmed_audio, mo, os, pd
+    return CSV_FOLDER, DATASET_FOLDER, get_trimmed_audio, mo, np, os, pd
 
 
 @app.cell(hide_code=True)
@@ -118,7 +118,22 @@ def _(X, df, embedder, embeddings_path, triplets_path):
         X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path
     )
     best_batch
-    return (selector,)
+    return best_batch, selector
+
+
+@app.cell
+def _(X, df, embeddings_path, selector, triplets_path):
+    selector.get_best_batch(
+        X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path, use_index_col=False
+    )
+    return
+
+
+@app.cell
+def _(best_batch, np, triplets_path):
+    with open(triplets_path.replace(".npy", "_index.npy"), "wb") as f:
+        np.save(f, best_batch.astype(np.int32))
+    return
 
 
 @app.cell(hide_code=True)
@@ -187,7 +202,7 @@ def _(UMAP, df, mean_embeddings_scaled, pd, umap_settings):
             n_components=dim, **umap_settings
         )
         umap_embeddings = reducer.fit_transform(mean_embeddings_scaled)
-    
+
         embedding_df = pd.DataFrame(
             umap_embeddings, index=df.index, columns=[f"UMAP_{dim}D_{d+1}" for d in range(dim)]
         )
