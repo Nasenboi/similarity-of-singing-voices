@@ -26,7 +26,8 @@ def _():
         STEMS_FOLDER,
         UVR_MODEL_PATH,
     )
-    return DATASET_FOLDER, alt, os, pd
+    from sklearn.metrics import cohen_kappa_score
+    return DATASET_FOLDER, alt, mo, os, pd
 
 
 @app.cell
@@ -45,13 +46,29 @@ def _(pd):
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    # Load all Datasets
+    """)
+    return
+
+
+@app.cell
 def _(SURVEY_FOLDER, os, parse_js_date, pd):
-    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"))
-    surveyAnswers = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"))
+    participants = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
+    )
+    surveyQuestions = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
+    )
+    surveyAnswers = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
+    )
+    songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    return participants, surveyAnswers
+    return participants, surveyAnswers, surveyQuestions
 
 
 @app.cell
@@ -67,8 +84,62 @@ def _(participants):
 
 
 @app.cell
-def _(participants):
-    participants[participants.surveyCompleted].completionMinutes.to_list()
+def _(mo):
+    mo.md(r"""
+    ## Initial Statistics
+    """)
+    return
+
+
+@app.cell
+def _(participants, surveyAnswers, surveyQuestions):
+    ab_ratio_a = (
+        100
+        * len(surveyAnswers[surveyAnswers.answer_1 == "A"])
+        / len(surveyAnswers)
+    )
+    ab_ratio_b = (
+        100
+        * len(surveyAnswers[surveyAnswers.answer_1 == "B"])
+        / len(surveyAnswers)
+    )
+
+    instruments_on_yes = (
+        100
+        * len(surveyAnswers[surveyAnswers.backgroundMusic])
+        / len(surveyAnswers)
+    )
+    instruments_on_no = (
+        100
+        * len(surveyAnswers[~surveyAnswers.backgroundMusic])
+        / len(surveyAnswers)
+    )
+
+    print(f"""
+    Total number of participants: {len(participants)}
+    Number of completed surveys:  {len(participants[participants.surveyCompleted])}
+    Number of incomple surveys:   {
+        len(participants[~participants.surveyCompleted])
+    }
+
+    Median completion time: {
+        round(participants.completionMinutes.median())
+    } minutes
+
+    Total number of questions: {len(surveyQuestions)} 
+    Number of questions with no answers: {
+        surveyQuestions[
+            ~surveyQuestions.index.isin(surveyAnswers["questionID"])
+        ].shape[0]
+    }
+    Number of questions with multiple answers: {
+        surveyAnswers.groupby("questionID").size().loc[lambda x: x > 1].shape[0]
+    }
+
+    Total number of answers: {len(surveyAnswers)}
+    Answer A/B: {ab_ratio_a:.1f}% A; {ab_ratio_b:.1f}% B
+    Instruments on:   {instruments_on_yes:.1f}% Yes; {instruments_on_no:.1f}% No
+    """)
     return
 
 
@@ -83,7 +154,7 @@ def _(alt, participants):
             x=alt.X(
                 "completionMinutes",
                 type="quantitative",
-                bin=True,
+                bin=alt.Bin(step=5),
                 title="completionMinutes",
             ),
             y=alt.Y("count()", type="quantitative", title="Number of records"),
@@ -91,7 +162,7 @@ def _(alt, participants):
                 alt.Tooltip(
                     "completionMinutes",
                     type="quantitative",
-                    bin=True,
+                    bin=alt.Bin(step=5),
                     title="completionMinutes",
                     format=",.2f",
                 ),
@@ -113,6 +184,103 @@ def _(alt, participants):
 @app.cell
 def _(surveyAnswers):
     surveyAnswers
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## Further Statistics
+    """)
+    return
+
+
+@app.cell
+def _(surveyAnswers):
+    def get_perc_values(questionID: str):
+        answers = surveyAnswers[surveyAnswers.questionID == questionID]
+        n = len(answers)
+        a = None if n == 0 else (len(answers[answers.answer_1 == "A"]) / n)
+        b = None if n == 0 else (len(answers[answers.answer_1 == "B"]) / n)
+        instruments_on = None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
+        agreement = None if n == 0 else max(a, b)
+        return {"num_answers": n, "A_perc": a, "B_perc": b, "agreement": agreement, "instruments_on": instruments_on}
+    return (get_perc_values,)
+
+
+@app.cell
+def _(get_perc_values, pd, surveyQuestions):
+    surveyQuestions[["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]] = (
+        surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
+    )
+    surveyQuestions
+    return
+
+
+@app.cell
+def _(surveyQuestions):
+    # agreement for multiple answers per question:
+    multi_answer_mask = surveyQuestions.num_answers > 1
+    pe = 0.5
+    po = surveyQuestions[multi_answer_mask].agreement.mean()
+
+    kappa = (po - pe) / (1 - pe)
+    print(f"""
+    Number of questions with multiple answers: {len(surveyQuestions[multi_answer_mask])}
+    Answer agreement (po): {100 * po:.1f}%
+    Chance agreement (pe): 50%
+    Cohen's Kappa:    {kappa:.3f}
+    """)
+    return multi_answer_mask, pe
+
+
+@app.cell
+def _(multi_answer_mask, surveyQuestions):
+    instrument_mask1 = surveyQuestions.instruments_on > 0
+    instrument_mask2 = surveyQuestions.instruments_on < 1
+    surveyQuestions[instrument_mask1 & instrument_mask2 & multi_answer_mask]
+    return instrument_mask1, instrument_mask2
+
+
+@app.cell
+def _(
+    instrument_mask1,
+    instrument_mask2,
+    multi_answer_mask,
+    pe,
+    surveyQuestions,
+):
+    po_i_differ = surveyQuestions[instrument_mask1 & instrument_mask2 & multi_answer_mask].agreement.mean()
+
+    kappa_i_differ = (po_i_differ - pe) / (1 - pe)
+    print(f"""
+    Different Instrument Settings:
+    Number of multiple answers per question with different instrument settings: {len(surveyQuestions[instrument_mask1 & instrument_mask2 & multi_answer_mask])}
+    Answer agreement (po): {100 * po_i_differ:.1f}%
+    Cohen's Kappa:    {kappa_i_differ:.3f}
+    """)
+    return
+
+
+@app.cell
+def _(
+    instrument_mask1,
+    instrument_mask2,
+    multi_answer_mask,
+    pe,
+    surveyQuestions,
+):
+    po_i_same = surveyQuestions[~(instrument_mask1 & instrument_mask2) & multi_answer_mask].agreement.mean()
+
+
+
+    kappa_i_same = (po_i_same - pe) / (1 - pe)
+    print(f"""
+    Same Instrument Settings:
+    Number of multiple answers per question with same instrument settings: {len(surveyQuestions[~(instrument_mask1 & instrument_mask2) & multi_answer_mask])}
+    Answer agreement (po): {100 * po_i_same:.1f}%
+    Cohen's Kappa:    {kappa_i_same:.3f}
+    """)
     return
 
 
