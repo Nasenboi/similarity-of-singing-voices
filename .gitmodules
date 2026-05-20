@@ -1,0 +1,6 @@
+[submodule "src/submodules/voice-gender-classifier"]
+	path = src/submodules/voice-gender-classifier
+	url = https://github.com/JaesungHuh/voice-gender-classifier.git
+[submodule "src/submodules/voice-age-regression"]
+	path = src/submodules/voice-age-regression
+	url = https://github.com/griko/voice-age-regression.git
