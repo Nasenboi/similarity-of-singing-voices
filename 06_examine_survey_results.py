@@ -5,6 +5,14 @@ app = marimo.App(width="medium")
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    #  Import Python Packages
+    """)
+    return
+
+
+@app.cell
 def _():
     import marimo as mo
     import pandas as pd
@@ -39,7 +47,6 @@ def _(DATASET_FOLDER, os):
 @app.cell
 def _(pd):
     def parse_js_date(series):
-        # Remove " (Coordinated Universal Time)" and similar parenthetical suffixes
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
     return (parse_js_date,)
@@ -190,7 +197,7 @@ def _(surveyAnswers):
 @app.cell
 def _(mo):
     mo.md(r"""
-    ## Further Statistics
+    ## Other Statistics
     """)
     return
 

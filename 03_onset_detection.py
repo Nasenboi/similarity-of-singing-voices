@@ -5,6 +5,14 @@ app = marimo.App(width="medium")
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    # Import Python Packages
+    """)
+    return
+
+
+@app.cell
 def _():
     # initial imports
     import marimo as mo
@@ -14,7 +22,15 @@ def _():
     from src.utils import get_onsets_es
     import librosa
     import matplotlib.pyplot as plt
-    return CSV_FOLDER, get_onsets_es, librosa, os, pd, plt
+    return CSV_FOLDER, get_onsets_es, librosa, mo, os, pd, plt
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # Load the Dataset
+    """)
+    return
 
 
 @app.cell
@@ -29,6 +45,16 @@ def _(CSV_FOLDER, os, pd):
     # .drop(columns="Unnamed: 0")
     df
     return (df,)
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # Calculate Onsets
+
+    Onsets are calculated using Essentias [Onset detection](https://essentia.upf.edu/tutorial_rhythm_onsetdetection.html) algorithm.
+    """)
+    return
 
 
 @app.cell

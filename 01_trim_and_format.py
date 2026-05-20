@@ -5,6 +5,14 @@ app = marimo.App(width="medium")
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    # Import Python Packages
+    """)
+    return
+
+
+@app.cell
 def _():
     # Initial Imports
     import marimo as mo
@@ -67,7 +75,7 @@ def _(AUDIO_FOLDER, TRACKS_PATH, get_audio_path, load):
 def _(mo):
     mo.md(r"""
     # Format the Dataset
-    Create a minimalist dataset with essential track information
+    Create a smaller dataset with relevant track information
     """)
     return
 
@@ -102,8 +110,9 @@ def _(pd, tracks_df):
 def _(mo):
     mo.md(r"""
     # Trim the dataset
-    Remove all rows which will most likely not contain any clean singing voice parts.
-    Use only one track per artist. Mark overlapping artist names.
+
+    1. Ignore genres where singing voices are less likely
+    2. Use only one track per artist name
     """)
     return
 
@@ -143,8 +152,29 @@ def _(fma_genres):
 def _(mo):
     mo.md(r"""
     # Create Vocal and Instrument Stems
+
+    Separator class from [GitHub](https://github.com/nomadkaraoke/python-audio-separator), thanks to "nomadkaraoke".
+    Separator model from [HuggingFace](https://huggingface.co/KimberleyJSN/melbandroformer/blob/main/MelBandRoformer.ckpt) thanks to Kimberley Jensen
+
+    Wang, J.-C., Lu, W.-T., & Won, M. (2023). Mel-Band RoFormer for Music Source Separation. https://arxiv.org/abs/2310.01809
     """)
     return
+
+
+@app.cell
+def _(STEM_FOLDER, Separator, UVR_MODEL_PATH, logging):
+    UVR_MODEL_NAME = "model_mel_band_roformer_ep_3005_sdr_11.4360.ckpt"
+    OUTPUT_FORMAT = "MP3"
+
+    separator = Separator(
+        model_file_dir=UVR_MODEL_PATH,
+        output_dir=STEM_FOLDER,
+        output_format=OUTPUT_FORMAT,
+        log_level=logging.WARNING,
+    )
+
+    separator.load_model(model_filename=UVR_MODEL_NAME)
+    return (separator,)
 
 
 @app.cell
@@ -182,22 +212,6 @@ def _(STEM_PATH, os, path, separator, shutil, triplet_df_single):
             print(e)
             return None
     return (processFile,)
-
-
-@app.cell
-def _(STEM_FOLDER, Separator, UVR_MODEL_PATH, logging):
-    UVR_MODEL_NAME = "model_mel_band_roformer_ep_3005_sdr_11.4360.ckpt"
-    OUTPUT_FORMAT = "MP3"
-
-    separator = Separator(
-        model_file_dir=UVR_MODEL_PATH,
-        output_dir=STEM_FOLDER,
-        output_format=OUTPUT_FORMAT,
-        log_level=logging.WARNING,
-    )
-
-    separator.load_model(model_filename=UVR_MODEL_NAME)
-    return (separator,)
 
 
 @app.cell

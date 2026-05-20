@@ -1,7 +1,15 @@
 import marimo
 
-__generated_with = "0.23.6"
+__generated_with = "0.18.4"
 app = marimo.App(width="medium")
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # Import Python Packages
+    """)
+    return
 
 
 @app.cell
@@ -24,14 +32,13 @@ def _():
         DATASET_FOLDER,
         MODEL_FOLDER,
     )
-
     return CSV_FOLDER, mo, os, pd
 
 
 @app.cell
 def _(mo):
     mo.md(r"""
-    # Load the Tracks DF
+    # Load the Dataset
     Song Features already present
     """)
     return
@@ -77,14 +84,23 @@ def _(os):
     import json
 
     tf.debugging.set_log_device_placement(True)
-    print(tf.config.list_physical_devices('GPU'))
+    print(tf.config.list_physical_devices("GPU"))
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## Estimated Speaker Gender
+    - Gender Estimation Model from [GitHub](https://github.com/JaesungHuh/voice-gender-classifier) thanks to "JaesungHuh"
+    """)
     return
 
 
 @app.cell
 def _():
-    #https://github.com/TaoRuijie/ECAPA-TDNN
-    #https://github.com/JaesungHuh/voice-gender-classifier
+    # https://github.com/TaoRuijie/ECAPA-TDNN
+    # https://github.com/JaesungHuh/voice-gender-classifier
     """
     import torch
     import sys
@@ -102,9 +118,9 @@ def _():
         # audio = model.load_audio(realPath).to(device)
         audio = get_trimmed_audio(audiopath=realPath, sr=16000).unsqueeze(0).to(device)
         with torch.no_grad():
-            logits = model.forward(audio)              
-            probs = torch.softmax(logits, dim=1)[0]   
-    
+            logits = model.forward(audio)
+            probs = torch.softmax(logits, dim=1)[0]
+
         return pd.Series({
             "pred_gender": model.pred2gender[probs.argmax().item()],
             "pred_p_male": probs[0].item(),
@@ -118,10 +134,22 @@ def _():
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    ## Estimated Speaker Age
+    - AgeRegressionPipeline from [GitHub](https://github.com/griko/voice-age-regression) thanks to "griko"
+    - Age regression model from [HiggingFace](https://huggingface.co/griko/age_reg_svr_ecapa_librosa_voxceleb2) thanks to  "griko"
+
+    Koushnir, G., Fire, M., Alpert, G. F., & Kagan, D. (2025). VANPY: Voice Analysis Framework. https://arxiv.org/abs/2502.17579
+    """)
+    return
+
+
+@app.cell
 def _():
-    #https://github.com/TaoRuijie/ECAPA-TDNN
-    #https://github.com/griko/voice-age-regression
-    #https://huggingface.co/griko/age_reg_svr_ecapa_librosa_voxceleb2
+    # https://github.com/TaoRuijie/ECAPA-TDNN
+    # https://github.com/griko/voice-age-regression
+    # https://huggingface.co/griko/age_reg_svr_ecapa_librosa_voxceleb2
     """
     import torch
     import sys
@@ -147,7 +175,7 @@ def _():
             features = model.forward(inputs)
             pred_age = model.postprocess(features)[0]
             pred_age_no_trim = model(realPath)[0]
-        
+
         return pd.Series({
             "pred_age": pred_age,
             "pred_age_no_trim": pred_age_no_trim

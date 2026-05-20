@@ -5,6 +5,14 @@ app = marimo.App(width="medium")
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    # Import Python Packages
+    """)
+    return
+
+
+@app.cell
 def _():
     # Initial Imports
     import marimo as mo
@@ -21,7 +29,7 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # Load Dataset
+    # Load the Dataset
     """)
     return
 
@@ -33,9 +41,6 @@ def _(CSV_FOLDER, os, pd):
     df = pd.read_csv(
         os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id"
     )
-    # mask = (df.voice_quality == 3) & (~df.multiple_voices)
-    # df = df[mask]
-    # .drop(columns="Unnamed: 0")
     df
     return (df,)
 
@@ -43,13 +48,8 @@ def _(CSV_FOLDER, os, pd):
 @app.cell
 def _(mo):
     mo.md(r"""
-    # Paths and Hyperparameters
+    # Set Paths and Hyperparameters
     """)
-    return
-
-
-@app.cell
-def _():
     return
 
 
@@ -67,7 +67,7 @@ def _(DATASET_FOLDER, os):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # Audio Files
+    # Load Audio Files
     """)
     return
 
@@ -85,7 +85,11 @@ def _(df, embeddings_path, get_trimmed_audio, os):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # Embedding Model
+    # Load Embedding Model
+    - MelSpectrogramEncoder from [pip](https://speechbrain.readthedocs.io/en/latest/installation.html), thanks to speechbrain
+    - Encoder Model from [HuggingFace](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb-mel-spec), thanks to speechbrain
+
+    Ravanelli, M., Parcollet, T., Plantinga, P., Rouhe, A., Cornell, S., Lugosch, L., Subakan, C., Dawalatabad, N., Heba, A., Zhong, J., Chou, J.-C., Yeh, S.-L., Fu, S.-W., Liao, C.-F., Rastorgueva, E., Grondin, F., Aris, W., Na, H., Gao, Y., … Bengio, Y. (2021). SpeechBrain: A General-Purpose Speech Toolkit.
     """)
     return
 
@@ -104,7 +108,10 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # Triplet Selection
+    # Apply Triplet Selection
+    - MaxEntTripletSelector from [GitHub](https://github.com/Nasenboi/torch-maxent-triplet-selection), self written, based on work of Priyadarshini et. al. (2021)
+
+    K, Priyadarshini, Chaudhuri, S., Borkar, V., & Chaudhuri, S. (2021). A unified batch selection policy for active metric learning. [doi:10.48550/ARXIV.2102.07365](https://arxiv.org/abs/2102.07365)
     """)
     return
 
@@ -141,7 +148,7 @@ def _(mo):
     mo.md(r"""
     # Add additional Metadata to the DataFrame
     1. The cluster ids
-    2. A dimensionality reduced embedding Version for a 3D map
+    2. A dimensionality reduced embedding Version for a 2D / 3D map
     """)
     return
 
@@ -149,11 +156,6 @@ def _(mo):
 @app.cell
 def _(df, selector):
     df["cluster"] = selector.cluster_ids
-    return
-
-
-@app.cell
-def _(df):
     df
     return
 

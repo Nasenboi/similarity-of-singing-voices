@@ -5,6 +5,14 @@ app = marimo.App(width="medium")
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    # Import Python Packages
+    """)
+    return
+
+
+@app.cell
 def _():
     import marimo as mo
     import os
@@ -14,7 +22,15 @@ def _():
     import librosa
     import matplotlib.pyplot as plt
     import shutil
-    return DATASET_FOLDER, os, pd, shutil
+    return DATASET_FOLDER, mo, os, pd, shutil
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # Load the Dataset
+    """)
+    return
 
 
 @app.cell
@@ -24,23 +40,15 @@ def _(CSV_FOLDER, os, pd):
     df = pd.read_csv(
         os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id"
     )
-    # mask = (df.voice_quality == 3) & (~df.multiple_voices)
-    # df = df[mask]
-    # .drop(columns="Unnamed: 0")
     df
     return (df,)
 
 
 @app.cell
-def _(df):
-    df.iloc[0].song_path
-
-    return
-
-
-@app.cell
-def _(df):
-    df.iloc[0].vocal_path
+def _(mo):
+    mo.md(r"""
+    # Move Relecant Files to "Release" Folder
+    """)
     return
 
 
@@ -64,11 +72,6 @@ def _(DATASET_FOLDER, os, shutil):
 @app.cell
 def _(df, moveFiles):
     df.apply(moveFiles, axis=1)
-    return
-
-
-@app.cell
-def _():
     return
 
 

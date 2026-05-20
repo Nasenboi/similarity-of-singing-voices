@@ -1,7 +1,15 @@
 import marimo
 
-__generated_with = "0.23.6"
+__generated_with = "0.18.4"
 app = marimo.App(width="medium")
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # Import Python Packages
+    """)
+    return
 
 
 @app.cell
@@ -24,7 +32,6 @@ def _():
         DATASET_FOLDER,
         MODEL_FOLDER,
     )
-
     return CSV_FOLDER, DATASET_FOLDER, MODEL_FOLDER, mo, np, os, pd
 
 
@@ -43,14 +50,13 @@ def _(mo):
     mo.md(r"""
     # Load the Tracks DF
     Use only songs that were not skipped in the survey.
-    Drop columns with unimportant values:
-    column | reason
-    checked => always true
-    is voiced  => always true
-    interview => always false
-    artist overlaps  => always empty list
-    multiple voices  => always false
-    voice quality  => always 3
+    Drop columns with irrelevant values:
+    - checked => always true
+    - is voiced  => always true
+    - interview => always false
+    - artist overlaps  => always empty list
+    - multiple voices  => always false
+    - voice quality  => always 3
     """)
     return
 
@@ -162,6 +168,17 @@ def _():
     )
     track_df
     """
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # Initialize Essentia ML Embeddings
+    - Embeddings done via [Effnet Discogs](https://essentia.upf.edu/models.html#discogs-effnet)
+
+    Alonso-Jiménez, P., Serra, X., & Bogdanov, D. (2023). Efficient Supervised Training of Audio Transformers for Music Representation Learning. https://arxiv.org/abs/2309.16418
+    """)
     return
 
 
