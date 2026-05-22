@@ -32,9 +32,12 @@ def _():
         AUDIO_FOLDER,
         STEMS_FOLDER,
         UVR_MODEL_PATH,
+        STEMS_FOLDER
     )
     return (
         AUDIO_FOLDER,
+        CSV_FOLDER,
+        STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
         get_audio_path,
@@ -145,7 +148,7 @@ def _(fma_genres):
     # remove overlaps
     # fma_single_file = fma_single_file[~fma_single_file["artist_overlaps"].astype(bool)]
     fma_single_file
-    return (fma_single_file,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -162,23 +165,27 @@ def _(mo):
 
 
 @app.cell
-def _(STEM_FOLDER, Separator, UVR_MODEL_PATH, logging):
+def _(STEMS_FOLDER, UVR_MODEL_PATH):
+    from audio_separator.separator import Separator
+    import logging
+    import shutil
+
     UVR_MODEL_NAME = "model_mel_band_roformer_ep_3005_sdr_11.4360.ckpt"
     OUTPUT_FORMAT = "MP3"
 
     separator = Separator(
         model_file_dir=UVR_MODEL_PATH,
-        output_dir=STEM_FOLDER,
+        output_dir=STEMS_FOLDER,
         output_format=OUTPUT_FORMAT,
         log_level=logging.WARNING,
     )
 
     separator.load_model(model_filename=UVR_MODEL_NAME)
-    return (separator,)
+    return separator, shutil
 
 
 @app.cell
-def _(STEM_PATH, os, path, separator, shutil, triplet_df_single):
+def _(STEMS_FOLDER, fma_reduced, os, separator, shutil):
     def processFile(track_id: str) -> str:
         """Process a single file
 
@@ -190,23 +197,23 @@ def _(STEM_PATH, os, path, separator, shutil, triplet_df_single):
         """
         try:
             track_id_zp = "{0:06d}".format(track_id)
-            sub_path = path.join(track_id_zp[:3], track_id_zp)
-            os.makedirs(path.join(STEM_PATH, sub_path), exist_ok=True)
+            sub_path = os.path.join(track_id_zp[:3], track_id_zp)
+            os.makedirs(os.path.join(STEMS_FOLDER, sub_path), exist_ok=True)
             output_names = {
-                "Vocals": path.join(sub_path, "vocals"),
-                "Instrumental": path.join(sub_path, "instrumental"),
+                "Vocals": os.path.join(sub_path, "vocals"),
+                "Instrumental": os.path.join(sub_path, "instrumental"),
             }
-            vocals_path = path.join(STEM_PATH, f"{output_names['Vocals']}.mp3")
+            vocals_path = os.path.join(STEMS_FOLDER, f"{output_names['Vocals']}.mp3")
             if os.path.exists(vocals_path):
                 return vocals_path
             separator.separate(
-                triplet_df_single.loc[track_id].song_path, output_names
+                fma_reduced.loc[track_id].song_path, output_names
             )
             for name in ["Vocals", "Instrumental"]:
-                false_path = path.join(
-                    STEM_PATH, f"{output_names[name].replace('/', '_')}.mp3"
+                false_path = os.path.join(
+                    STEMS_FOLDER, f"{output_names[name].replace('/', '_')}.mp3"
                 )
-                true_path = path.join(STEM_PATH, f"{output_names[name]}.mp3")
+                true_path = os.path.join(STEMS_FOLDER, f"{output_names[name]}.mp3")
                 shutil.move(false_path, true_path)
         except Exception as e:
             print(e)
@@ -215,20 +222,54 @@ def _(STEM_PATH, os, path, separator, shutil, triplet_df_single):
 
 
 @app.cell
-def _(fma_single_file, mo, processFile, triplet_df_single):
-    fma_single_file["vocal_path"] = [
+def _(fma_reduced, mo, processFile):
+    fma_reduced["vocal_path"] = [
         processFile(int(track_id))
         for track_id in mo.status.progress_bar(
-            triplet_df_single.index,
+            fma_reduced.index,
             title="Separating vocals...",
             subtitle="Processing tracks",
             completion_title="Done!",
-            completion_subtitle=f"Processed {len(triplet_df_single)} tracks",
+            completion_subtitle=f"Processed {len(fma_reduced)} tracks",
         )
     ]
 
-    fma_single_file.dropna(subset=["vocal_path"])
+    fma_reduced.dropna(subset=["vocal_path"])
     return
+
+
+@app.cell
+def _(CSV_FOLDER, os, pd):
+    track_df = pd.read_csv(
+        os.path.join(
+            CSV_FOLDER,
+            "LargeDataset",
+            "additional_features",
+            "high_level_features.csv",
+        ),
+        index_col="track_id",
+    )
+    track_df
+    return (track_df,)
+
+
+@app.cell
+def _(fma, track_df):
+    track_df["artist_id"] = track_df.apply(lambda x: fma.loc[x.name, 'artist_id'], axis=1)
+    return
+
+
+@app.cell
+def _(track_df):
+    len(track_df.artist_id.unique())
+    return
+
+
+@app.cell
+def _(fma_genres, track_df):
+    fma_reduced = fma_genres[fma_genres["artist_id"].isin(track_df["artist_id"])]
+    fma_reduced
+    return (fma_reduced,)
 
 
 if __name__ == "__main__":
