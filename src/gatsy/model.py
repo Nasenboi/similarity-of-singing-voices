@@ -65,6 +65,10 @@ class Trainer:
 
         self.optimizer = Adam(self.model.parameters(), lr=lr, weight_decay=weight_decay)
         self.loss_function = TripletMarginLoss(margin=margin)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=self.epochs, eta_min=0, last_epoch=-1
+        )
+
         self.first = True
         self.checkpoint = {}
         self.best_model = None
@@ -90,6 +94,7 @@ class Trainer:
 
             total_loss.backward()
             self.optimizer.step()
+            self.scheduler.step()
 
             self.loss_train_f = total_loss.item() / len(self.train_loader.dataset)
             self.__end_epoch()
