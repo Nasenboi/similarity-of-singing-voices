@@ -280,7 +280,7 @@ dependencies:
       - libclang==18.1.1
       - lightning-utilities==0.15.3
       - loro==1.10.3
-      - marimo==0.18.4
+      - marimo==0.23.8
       - markdown==3.10
       - markdown-it-py==4.2.0
       - mdurl==0.1.2
@@ -342,12 +342,14 @@ dependencies:
       - pydantic-core==2.46.4
       - pydot==4.0.1
       - pygments==2.19.2
-      - pymdown-extensions==10.18
+      - pymdown-extensions==10.21.3
       - pynndescent==0.5.13
       - pytest==7.4.0
       - python-discovery==1.1.0
+      - python-multipart==0.0.29
       - pytorch-lightning==2.6.4
       - pytorch-metric-learning==2.9.0
+      - pyzmq==27.1.0
       - referencing==0.37.0
       - resampy==0.4.3
       - retrying==1.4.2
