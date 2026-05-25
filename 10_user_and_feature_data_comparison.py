@@ -248,13 +248,14 @@ def _(MelSpectrogramEncoder):
     encoder = MelSpectrogramEncoder.from_hparams(
         source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
     )
-    return (encoder,)
+    SAMPLE_RATE = 16_000
+    return SAMPLE_RATE, encoder
 
 
 @app.cell
-def _(encoder, get_trimmed_audio, track_df):
+def _(SAMPLE_RATE, encoder, get_trimmed_audio, track_df):
     embeddings = track_df.song_path.apply(
-        lambda x: encoder.encode_waveform(get_trimmed_audio(x))
+        lambda x: encoder.encode_waveform(get_trimmed_audio(x, SAMPLE_RATE))
         .cpu()
         .numpy()
         .squeeze()
@@ -308,9 +309,9 @@ def _(MODEL_FOLDER, encoder, os, torch):
 
 
 @app.cell
-def _(encoder, get_trimmed_audio, track_df):
+def _(SAMPLE_RATE, encoder, get_trimmed_audio, track_df):
     ft_embeddings = track_df.song_path.apply(
-        lambda x: encoder.encode_waveform(get_trimmed_audio(x))
+        lambda x: encoder.encode_waveform(get_trimmed_audio(x, SAMPLE_RATE))
         .cpu()
         .numpy()
         .squeeze()
