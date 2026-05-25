@@ -190,7 +190,7 @@ def _(pd, track_df):
         a_1 = track_df.loc[answer["track_id_1"]][feature]
         a_2 = track_df.loc[answer["track_id_2"]][feature]
         return getAgreementScore(x, a_1, a_2)
-    return (getFeatureAgreement,)
+    return getAgreementScore, getFeatureAgreement
 
 
 @app.cell
@@ -326,6 +326,139 @@ def _(ft_embeddings, getEmbeddingAgreementScore, surveyAnswers):
         lambda x: getEmbeddingAgreementScore(x, ft_embeddings), axis=1
     )
     surveyAnswers["ft_embedding_agreement"].mean()
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    # GeMAPS Feature Set
+    """)
+    return
+
+
+@app.cell
+def _():
+    import opensmile
+
+    smile = opensmile.Smile(
+        feature_set=opensmile.FeatureSet.eGeMAPSv02,
+        feature_level=opensmile.FeatureLevel.Functionals,
+    )
+    smile.feature_names
+    return (smile,)
+
+
+@app.cell
+def _(SAMPLE_RATE, get_trimmed_audio, pd, smile, track_df):
+    def get_feature_set(song_path):
+        trimmed_audio = get_trimmed_audio(song_path, sr=SAMPLE_RATE)
+        return smile.process_signal(trimmed_audio, SAMPLE_RATE).values[0]
+
+
+    gemaps_features = pd.DataFrame(track_df.song_path.apply(get_feature_set).tolist(), columns=smile.feature_names, index=track_df.index)
+    gemaps_features
+    return (gemaps_features,)
+
+
+@app.cell
+def _():
+    """
+    gemaps_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy")
+    with open(gemaps_feature_path, "wb") as npyfile:
+        np.save(npyfile, gemaps_features.values)
+    """
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## Single Feature Agreement
+    """)
+    return
+
+
+@app.cell
+def _(gemaps_features, getAgreementScore):
+    def getFeatureAgreementScore(x, a_1, a_2):
+        dist_a_1 = abs(x - a_1)
+        dist_a_2 = abs(x - a_2)
+        if dist_a_1 < dist_a_2:
+            return 1.0  # => agreement
+        if dist_a_2 < dist_a_1:
+            return -1.0  # => disagreement
+        else:
+            return 0.0  # => uncertainty
+
+    def getSingleGeMAPSAgreement(answer, feature: str):
+        x = gemaps_features.loc[answer["track_id_X"]][feature]
+        a_1 = gemaps_features.loc[answer["track_id_1"]][feature]
+        a_2 = gemaps_features.loc[answer["track_id_2"]][feature]
+        return getAgreementScore(x, a_1, a_2)
+    return (getSingleGeMAPSAgreement,)
+
+
+@app.cell
+def _(getSingleGeMAPSAgreement, mo, pd, smile, surveyAnswers):
+    gemaps_agreement = pd.DataFrame({
+        f"{f}_agreement": surveyAnswers.apply(
+            lambda row, f=f: getSingleGeMAPSAgreement(row, f), axis=1
+        )
+        for f in mo.status.progress_bar(smile.feature_names)
+    }, index=surveyAnswers.index)
+    gemaps_agreement
+    return
+
+
+@app.cell
+def _(smile, sns, surveyAnswers):
+    gemaps_agreement_mean_values = {
+        feat: surveyAnswers[f"{feat}_agreement"].mean() for feat in smile.feature_names
+    }
+
+    top_10_gemaps_agreement_mean_values = dict(
+        sorted(gemaps_agreement_mean_values.items(), key=lambda x: x[1], reverse=True)[:10]
+    )
+
+    sns.barplot(
+        y=list(top_10_gemaps_agreement_mean_values.keys()),
+        x=list(top_10_gemaps_agreement_mean_values.values()),
+    )
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## Feature Set Agreement
+    """)
+    return
+
+
+@app.cell
+def _(euclidean, gemaps_features, surveyAnswers):
+    def getGeMAPSAgreementScore(answer):
+        x = gemaps_features.loc[answer["track_id_X"]].values
+        a_1 = gemaps_features.loc[answer["track_id_1"]].values
+        a_2 = gemaps_features.loc[answer["track_id_2"]].values
+        dist_a_1 = euclidean(x, a_1)
+        dist_a_2 = euclidean(x, a_2)
+        if dist_a_1 < dist_a_2:
+            return 1.0  # => agreement
+        if dist_a_2 < dist_a_1:
+            return -1.0  # => disagreement
+        else:
+            return 0.0  # => uncertainty
+
+
+    surveyAnswers["gemaps_agreement"] = surveyAnswers.apply(getGeMAPSAgreementScore, axis=1)
+    surveyAnswers["gemaps_agreement"].mean()
+    return
+
+
+@app.cell
+def _():
     return
 
 
