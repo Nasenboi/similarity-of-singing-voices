@@ -22,6 +22,7 @@ from sklearn.neighbors import NearestNeighbors
 from torch.nn import TripletMarginLoss
 from torch.optim import Adam
 from torch.utils.data import DataLoader
+from typing import List
 
 from .architectures import GATSY
 from .utils import *
@@ -42,6 +43,7 @@ class Trainer:
         margin: float,
         device="cuda" if torch.cuda.is_available() else "cpu",
         n_neighbors: int = 5,
+        early_stop: int = 5,
         test_x: np.ndarray = None,  # optional, if not given all nodes are used in testing and training
         weight_decay=None,
         model_path=None,
@@ -56,6 +58,7 @@ class Trainer:
         self.test_x = torch.tensor(test_x).to(self.device) if test_x is not None else self.train_x
         self.test_edges = self.__get_edges(test_x, n_neighbors) if test_x is not None else self.train_edges
         self.epochs = epochs
+        self.early_stop = early_stop
         self.model_path = model_path if model_path is not None else os.getcwd()
         now = datetime.now().strftime("%Y%m%d-%H%M%S")
         self.model_name = model_name if model_name is not None else f"gatsy_{epochs}_{lr}_{now}.pt"
@@ -64,6 +67,9 @@ class Trainer:
         self.loss_function = TripletMarginLoss(margin=margin)
         self.first = True
         self.checkpoint = {}
+        self.best_model = None
+        self.best_test_loss = None
+        self.early_stop_counter = 0
 
     def train(self):
         """
@@ -87,8 +93,10 @@ class Trainer:
 
             self.loss_train_f = total_loss.item() / len(self.train_loader.dataset)
             self.__end_epoch()
+            if self.early_stop_counter >= self.early_stop:
+                break
 
-        self.checkpoint["modelState"] = self.model.state_dict()
+        self.checkpoint["modelState"] = self.best_model
         save_model(self.checkpoint, os.path.join(self.model_path, self.model_name))
 
     def test(self):
@@ -133,6 +141,7 @@ class Trainer:
         This method is called at the end of each epoch and its purpose is to save the model state, and metrics, in order to be loaded again when needed.
         """
         self.test()
+        self.__check_best_model()
         if self.device.type == "cuda":
             torch.cuda.empty_cache()
         if self.first:
@@ -146,6 +155,18 @@ class Trainer:
             self.checkpoint["loss_test"] += [self.loss_test_f]
             self.checkpoint["accuracy_score"] += [self.accuracy_score]
             self.checkpoint["pred_accuracy"] += [self.pred_accuracy]
+
+    def __check_best_model(self):
+        """
+        Checks if the current model is better than the previously best model.
+        Stores the best model for early stopping
+        """
+        if self.first or self.loss_test_f < self.best_test_loss:
+            self.best_test_loss = self.loss_test_f
+            self.best_model = self.model.state_dict()
+            self.early_stop_counter = 0
+        else:
+            self.early_stop_counter += 1
 
     def __get_edges(self, x: np.ndarray, n_neighbors: int) -> torch.Tensor:
         """
