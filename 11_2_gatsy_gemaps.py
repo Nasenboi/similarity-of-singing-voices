@@ -173,11 +173,7 @@ def _(pd, surveyAnswers_, surveyQuestions, track_df):
 @app.cell
 def _(mo):
     mo.md(r"""
-    # Load Embedding Model
-    - MelSpectrogramEncoder from [pip](https://speechbrain.readthedocs.io/en/latest/installation.html), thanks to speechbrain
-    - Encoder Model from [HuggingFace](https://huggingface.co/speechbrain/spkrec-ecapa-voxceleb-mel-spec), thanks to speechbrain
-
-    Ravanelli, M., Parcollet, T., Plantinga, P., Rouhe, A., Cornell, S., Lugosch, L., Subakan, C., Dawalatabad, N., Heba, A., Zhong, J., Chou, J.-C., Yeh, S.-L., Fu, S.-W., Liao, C.-F., Rastorgueva, E., Grondin, F., Aris, W., Na, H., Gao, Y., … Bengio, Y. (2021). SpeechBrain: A General-Purpose Speech Toolkit.
+    # Load Opensmile Utilities
     """)
     return
 
@@ -192,15 +188,10 @@ def _():
     from torch.utils.data import Dataset, DataLoader
     from speechbrain.inference.encoders import MelSpectrogramEncoder
     from sklearn.model_selection import train_test_split
+    import opensmile
 
     from src.utils import get_trimmed_audio
-    return (
-        DataLoader,
-        MelSpectrogramEncoder,
-        get_trimmed_audio,
-        torch,
-        train_test_split,
-    )
+    return DataLoader, opensmile, torch, train_test_split
 
 
 @app.cell
@@ -211,12 +202,13 @@ def _(torch):
 
 
 @app.cell
-def _(DEVICE, MelSpectrogramEncoder):
-    encoder = MelSpectrogramEncoder.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec",
-        run_opts={"device": DEVICE.type},
+def _(opensmile):
+    smile = opensmile.Smile(
+        feature_set=opensmile.FeatureSet.eGeMAPSv02,
+        feature_level=opensmile.FeatureLevel.Functionals,
     )
-    return (encoder,)
+    smile.feature_names
+    return
 
 
 @app.cell
@@ -241,19 +233,33 @@ def _():
     # SHUFFLE_ARTIST_TRACKS = False
     TRAIN_SIZE = 0.8
     SAMPLE_RATE = 16_000
-    return RANDOM_STATE, SAMPLE_RATE, TRAIN_SIZE
+    return RANDOM_STATE, TRAIN_SIZE
 
 
 @app.cell
-def _(SAMPLE_RATE, encoder, get_trimmed_audio, np, track_df):
-    def get_embedding(song_path):
+def _(DATASET_FOLDER, np, os, track_df):
+    """
+    def get_feature_set(song_path):
         trimmed_audio = get_trimmed_audio(song_path, sr=SAMPLE_RATE)
-        return encoder.encode_waveform(trimmed_audio).cpu().numpy().squeeze()
+        return smile.process_signal(trimmed_audio, SAMPLE_RATE).values[0]
 
 
-    x = np.stack(track_df.song_path.apply(get_embedding).values)
+    x = np.stack(track_df.song_path.apply(get_feature_set).values)
+    """
+
+    gemaps_feature_path = os.path.join(
+        DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy"
+    )
+    x = np.load(gemaps_feature_path)
     track_df["edge_id"] = range(len(track_df))
+    x
     return (x,)
+
+
+@app.cell
+def _(x):
+    x.shape
+    return
 
 
 @app.cell
@@ -335,7 +341,7 @@ def _(MODEL_FOLDER, os, torch):
         "linear2.bias",
     ]:
         del state_dict[l]
-    return (state_dict,)
+    return
 
 
 @app.cell
@@ -350,17 +356,18 @@ def _(mo):
 def _(GATSY, x):
     model_params = {
         "n_heads": 1,
-        "n_layers": 3,
+        "n_layers": 2,
         "input_dim": x.shape[-1],
         "hidden_dim": 256,
-        "output_dim": 64,
+        "output_dim": 128,
     }
     model = GATSY(**model_params)
     return (model,)
 
 
 @app.cell
-def _(model, state_dict):
+def _():
+    """
     model.load_state_dict(state_dict, strict=False)
 
     freeze_layers = [
@@ -374,6 +381,7 @@ def _(model, state_dict):
     for name, param in model.named_parameters():
         if any(layer in name for layer in freeze_layers):
             param.requires_grad = False
+    """
     return
 
 
@@ -403,13 +411,13 @@ def _(
         "train_x": x,
         "test_loader": test_loader,
         "lr": 0.0001,
-        "epochs": 200,
+        "epochs": 250,
         "early_stop": 10,
-        "margin": 2.0,
+        "margin": 1.5,
         "device": DEVICE,
         "n_neighbors": 10,
         "weight_decay": 0.0001,
-        "model_path": os.path.join(MODEL_FOLDER, "GATSY", "ecapa"),
+        "model_path": os.path.join(MODEL_FOLDER, "GATSY", "gemaps"),
     }
     trainer = Trainer(**trainer_params)
     trainer.train()
