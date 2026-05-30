@@ -226,10 +226,12 @@ dependencies:
   - zstd=1.5.7=hb78ec9c_6
   - pip:
       - absl-py==2.4.0
+      - accelerate==1.12.0
       - aiohappyeyeballs==2.6.2
       - aiohttp==3.13.5
       - aiosignal==1.4.0
       - altair==6.0.0
+      - annotated-doc==0.0.4
       - annotated-types==0.7.0
       - asttokens==3.0.1
       - astunparse==1.6.3
@@ -241,11 +243,13 @@ dependencies:
       - audmath==1.4.4
       - audobject==0.7.13
       - audresample==1.3.6
+      - av==17.0.1
       - beartype==0.18.5
       - blinker==1.9.0
       - certifi==2025.11.12
       - cfgv==3.5.0
       - codespell==2.4.1
+      - ctc-forced-aligner==0.3.0
       - cuda-bindings==12.9.4
       - cuda-pathfinder==1.3.4
       - cython==3.2.4
@@ -255,16 +259,22 @@ dependencies:
       - dill==0.4.1
       - distlib==0.4.0
       - docutils==0.22.3
+      - dynet38==2.2
       - einops==0.8.2
       - essentia-tensorflow==2.1b6.dev1389
+      - fastapi==0.136.3
       - flask==3.1.2
       - frozenlist==1.8.0
       - gast==0.7.0
       - gitdb==4.0.12
       - gitpython==3.1.50
       - google-pasta==0.2.0
+      - gradio==6.15.0
+      - gradio-client==2.5.0
+      - groovy==0.1.2
       - grpcio==1.80.0
       - h5py==3.14.0
+      - hf-gradio==0.4.1
       - huggingface-hub==0.36.0
       - hyperpyyaml==1.2.3
       - identify==2.6.17
@@ -288,9 +298,11 @@ dependencies:
       - mdurl==0.1.2
       - ml-collections==1.1.0
       - ml-dtypes==0.5.4
+      - modelscope==1.37.1
       - msgspec==0.20.0
       - multidict==6.7.1
       - multiprocess==0.70.19
+      - nagisa==0.2.11
       - namex==0.1.0
       - narwhals==2.13.0
       - nest-asyncio==1.6.0
@@ -329,10 +341,11 @@ dependencies:
       - onnx2torch-py313==1.6.0
       - opensmile==2.6.0
       - opt-einsum==3.4.0
+      - orjson==3.11.9
       - oyaml==1.0
       - parso==0.8.5
       - pathspec==1.0.4
-      - pip==26.0.1
+      - pip==26.1.1
       - platformdirs==4.5.1
       - plotly==6.5.0
       - pluggy==1.6.0
@@ -354,6 +367,8 @@ dependencies:
       - pytorch-lightning==2.6.4
       - pytorch-metric-learning==2.9.0
       - pyzmq==27.1.0
+      - qwen-asr==0.0.6
+      - qwen-omni-utils==0.0.9
       - referencing==0.37.0
       - resampy==0.4.3
       - retrying==1.4.2
@@ -363,15 +378,18 @@ dependencies:
       - ruamel-yaml==0.18.17
       - ruamel-yaml-clib==0.2.15
       - ruff==0.12.4
+      - safehttpx==0.1.7
       - samplerate==0.1.0
       - scipy-cut-tree-balanced==1.2
       - seaborn==0.13.2
+      - semantic-version==2.10.0
       - sentencepiece==0.2.1
       - sentry-sdk==2.60.0
       - setuptools==82.0.0
       - smmap==5.0.3
       - sounddevice==0.5.5
       - sox==1.5.0
+      - soynlp==0.0.493
       - speechbrain==1.0.3
       - starlette==0.50.0
       - tensorflow==2.21.0
@@ -382,10 +400,13 @@ dependencies:
       - torch-geometric==2.7.0
       - torch-maxent-triplet-selection==0.0.0
       - torchaudio==2.10.0
+      - torchcodec==0.13.0
       - torchmetrics==1.9.0
       - torchvision==0.25.0
       - tqdm==4.67.1
+      - transformers==4.57.6
       - triton==3.6.0
+      - typer==0.26.2
       - typing-inspection==0.4.2
       - umap-learn==0.5.9.post2
       - urllib3==2.6.1
