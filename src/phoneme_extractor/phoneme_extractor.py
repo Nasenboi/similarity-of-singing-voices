@@ -95,8 +95,8 @@ class PhonemeExtractor:
             sample_rate (int, optional): Audio Sample Rate. Defaults to 16_000.
             device (torch.device, optional): Torch Device. Defaults to "cuda" if it exists.
             min_sippet_duration (float, optional): Minimum duration in seconds for audio snippets. Defaults to 2.0.
-            min_phoneme_duration_ms (float, optional): Minimum duration in milliseconds for phonemes. Defaults to 40.
-            min_phoneme_confidence (float, optional): Minimum model confidence level for phoneme. Defaults to 0.0 (all).
+            min_phoneme_duration_ms (float, optional): Minimum duration in milliseconds for phonemes. Defaults to 40. !! Not implemented yet !!
+            min_phoneme_confidence (float, optional): Minimum model confidence level for phoneme. Defaults to 0.0 (all). !! Not implemented yet !!
         """
         # Universal values
         self.device = device
