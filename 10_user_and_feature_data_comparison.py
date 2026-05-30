@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.23.8"
 app = marimo.App(width="medium")
 
 
@@ -19,6 +19,8 @@ def _():
     import numpy as np
     import os
     import seaborn as sns
+    from typing import List, Literal
+    import matplotlib.pyplot as plt
 
     from src.globals import (
         CSV_FOLDER,
@@ -29,7 +31,19 @@ def _():
         UVR_MODEL_PATH,
         MODEL_FOLDER,
     )
-    return CSV_FOLDER, DATASET_FOLDER, MODEL_FOLDER, mo, os, pd, sns
+
+    return (
+        CSV_FOLDER,
+        DATASET_FOLDER,
+        List,
+        Literal,
+        MODEL_FOLDER,
+        mo,
+        np,
+        os,
+        pd,
+        sns,
+    )
 
 
 @app.cell
@@ -128,6 +142,175 @@ def _(pd, surveyAnswers_, surveyQuestions):
     return (surveyAnswers,)
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Reusable Agreement Calculation Functions
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Single Feature Scores (Per Feature)
+    """)
+    return
+
+
+@app.cell
+def _(List, mo, pd, surveyAnswers):
+    def getAgreementScore(x, a_1, a_2, use_distance: bool):
+        if pd.api.types.is_numeric_dtype(type(x)):
+            dist_a_1 = abs(x - a_1)
+            dist_a_2 = abs(x - a_2)
+            if use_distance:
+                return (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
+            else:
+                if dist_a_1 < dist_a_2:
+                    return 1.0  # => agreement
+                if dist_a_2 < dist_a_1:
+                    return -1.0  # => disagreement
+                else:
+                    return 0.0  # => uncertainty
+        else:
+            if a_1 == a_2:
+                return 0.0  # => uncertainty
+            elif a_1 == x:
+                return 1.0  # => agreement
+            elif a_2 == x:
+                return -1.0  # => disagreement
+            else:
+                return 0.0  # => unvertainty (all are different)
+
+
+    def getLocalFeatureAgreement(
+        answer,
+        feature_df: pd.DataFrame,
+        feature_key: str,
+        use_distance: bool = False,
+    ):
+        x = feature_df.loc[answer["track_id_X"]][feature_key]
+        a_1 = feature_df.loc[answer["track_id_1"]][feature_key]
+        a_2 = feature_df.loc[answer["track_id_2"]][feature_key]
+        return getAgreementScore(x, a_1, a_2, use_distance)
+
+
+    def getAllAgreements(
+        feature_df: pd.DataFrame,
+        feature_list: List[str],
+        add_distance_measures: bool = False,
+    ) -> pd.DataFrame:
+        columns = {}
+        for feat in mo.status.progress_bar(
+            feature_list,
+            title="Calculating Feature Agreement Scores",
+            remove_on_exit=True,
+        ):
+            f_column = ("score", feat) if add_distance_measures else feat
+            columns[f_column] = surveyAnswers.apply(
+                lambda x, f=feat: getLocalFeatureAgreement(x, feature_df, f),
+                axis=1,
+            )
+
+        if add_distance_measures:
+            for feat in mo.status.progress_bar(
+                feature_list,
+                title="Calculating Feature Distances",
+                remove_on_exit=True,
+            ):
+                if pd.api.types.is_float_dtype(feature_df[feat]):
+                    continue
+                columns[("distance", feat)] = surveyAnswers.apply(
+                    lambda x, f=feat: getLocalFeatureAgreement(
+                        x, feature_df, f, True
+                    ),
+                    axis=1,
+                )
+
+        agree_df = pd.DataFrame(columns)
+        if add_distance_measures:
+            agree_df.columns = pd.MultiIndex.from_tuples(agree_df.columns)
+        return agree_df
+
+
+    def get_mean_values(
+        agreement_df: pd.DataFrame, feature_list=None, top_x: int = None
+    ) -> dict:
+        f_iterator = (
+            feature_list if feature_list is not None else agreement_df.columns
+        )
+        mean_values = {feat: agreement_df[feat].mean() for feat in f_iterator}
+        if top_x is not None:
+            mean_values = dict(
+                sorted(
+                    mean_values.items(), key=lambda item: item[1], reverse=True
+                )[:top_x]
+            )
+        return mean_values
+
+    return getAllAgreements, get_mean_values
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Feature Set Agreement Scores
+
+    - Earth Mover's Distance Algorithm from [GitHub](https://github.com/garydoranjr/pyemd)
+
+    Doran, G. (2014). PyEMD: Earth Mover’s Distance for Python. https://github.com/garydoranjr/pyemd
+    """)
+    return
+
+
+@app.cell
+def _():
+    from scipy.spatial.distance import euclidean
+
+    return (euclidean,)
+
+
+@app.cell
+def _(Literal, euclidean, pd, surveyAnswers):
+    def getDistanceAgreementRow(
+        answer, feature_df, distance_algorithm
+    ) -> pd.Series:
+        x = feature_df.loc[answer["track_id_X"]].values
+        a_1 = feature_df.loc[answer["track_id_1"]].values
+        a_2 = feature_df.loc[answer["track_id_2"]].values
+        if distance_algorithm == "euclidean":
+            dist_a_1 = euclidean(x, a_1)
+            dist_a_2 = euclidean(x, a_2)
+        else:
+            raise NotImplementedError(
+                f"Distance Measure {distance_algorithm} is not implemented yet!"
+            )
+
+        dist = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
+        acc_score = 1.0 if dist_a_1 < dist_a_2 else 0.0
+
+        return pd.Series({"distance": dist, "accuracy": acc_score})
+
+
+    def getGlobalDistanceAgreement(
+        feature_df: pd.DataFrame,
+        distance_algorithm: Literal["euclidean"] = "euclidean",
+    ) -> pd.DataFrame:
+        """
+        Distance algorithms:
+        - euclidean: use euclidean distance
+        """
+        gda_df = pd.DataFrame()
+        gda_df[["distance", "accuracy"]] = surveyAnswers.apply(
+            lambda x: getDistanceAgreementRow(x, feature_df, distance_algorithm),
+            axis=1,
+        )
+        return gda_df
+
+    return (getGlobalDistanceAgreement,)
+
+
 @app.cell
 def _(mo):
     mo.md(r"""
@@ -157,65 +340,26 @@ def _():
 
 
 @app.cell
-def _(hl_features, track_df):
-    track_df[hl_features]
-    return
+def _(getAllAgreements, hl_features, track_df):
+    hl_agreements = getAllAgreements(track_df, hl_features, True)
+    hl_agreements
+    return (hl_agreements,)
 
 
 @app.cell
-def _(pd, track_df):
-    def getAgreementScore(x, a_1, a_2):
-        if pd.api.types.is_numeric_dtype(type(x)):
-            dist_a_1 = abs(x - a_1)
-            dist_a_2 = abs(x - a_2)
-            if dist_a_1 < dist_a_2:
-                return 1.0  # => agreement
-            if dist_a_2 < dist_a_1:
-                return -1.0  # => disagreement
-            else:
-                return 0.0  # => uncertainty
-        else:
-            if a_1 == a_2:
-                return 0.0  # => uncertainty
-            elif a_1 == x:
-                return 1.0  # => agreement
-            elif a_2 == x:
-                return -1.0  # => disagreement
-            else:
-                return 0.0  # => unvertainty (all are different)
-
-
-    def getFeatureAgreement(answer, feature: str):
-        x = track_df.loc[answer["track_id_X"]][feature]
-        a_1 = track_df.loc[answer["track_id_1"]][feature]
-        a_2 = track_df.loc[answer["track_id_2"]][feature]
-        return getAgreementScore(x, a_1, a_2)
-    return getAgreementScore, getFeatureAgreement
-
-
-@app.cell
-def _(getFeatureAgreement, hl_features, mo, surveyAnswers):
-    for feat in mo.status.progress_bar(hl_features):
-        surveyAnswers[f"{feat}_agreement"] = surveyAnswers.apply(
-            lambda x: getFeatureAgreement(x, feat), axis=1
-        )
-    surveyAnswers
-    return
-
-
-@app.cell
-def _(hl_features, surveyAnswers):
-    agreement_mean_values = {
-        feat: surveyAnswers[f"{feat}_agreement"].mean() for feat in hl_features
-    }
-    return (agreement_mean_values,)
-
-
-@app.cell
-def _(agreement_mean_values, sns):
+def _(get_mean_values, hl_agreements, sns):
     sns.barplot(
-        y=list(agreement_mean_values.keys()),
-        x=list(agreement_mean_values.values()),
+        y=hl_agreements["score"].columns,
+        x=list(get_mean_values(hl_agreements["score"]).values()),
+    )
+    return
+
+
+@app.cell
+def _(get_mean_values, hl_agreements, sns):
+    sns.barplot(
+        y=hl_agreements["distance"].columns,
+        x=list(get_mean_values(hl_agreements["distance"]).values()),
     )
     return
 
@@ -238,9 +382,10 @@ def _():
     import torchaudio
     from speechbrain.inference.encoders import MelSpectrogramEncoder
     from src.utils import get_trimmed_audio
-    from scipy.spatial.distance import euclidean
+
     import torch
-    return MelSpectrogramEncoder, euclidean, get_trimmed_audio, torch
+
+    return MelSpectrogramEncoder, get_trimmed_audio, torch
 
 
 @app.cell
@@ -253,38 +398,34 @@ def _(MelSpectrogramEncoder):
 
 
 @app.cell
-def _(SAMPLE_RATE, encoder, get_trimmed_audio, track_df):
-    embeddings = track_df.song_path.apply(
-        lambda x: encoder.encode_waveform(get_trimmed_audio(x, SAMPLE_RATE))
-        .cpu()
-        .numpy()
-        .squeeze()
-    )
-    embeddings.shape
-    return (embeddings,)
+def _(SAMPLE_RATE, get_trimmed_audio):
+    def get_embedding(song_path, enc):
+        trimmed_audio = get_trimmed_audio(song_path, sr=SAMPLE_RATE)
+        return enc.encode_waveform(trimmed_audio).cpu().numpy().squeeze()
+
+    return (get_embedding,)
 
 
 @app.cell
-def _(embeddings, euclidean, surveyAnswers):
-    def getEmbeddingAgreementScore(answer, emb):
-        x = emb.loc[answer["track_id_X"]]
-        a_1 = emb.loc[answer["track_id_1"]]
-        a_2 = emb.loc[answer["track_id_2"]]
-        dist_a_1 = euclidean(x, a_1)
-        dist_a_2 = euclidean(x, a_2)
-        if dist_a_1 < dist_a_2:
-            return 1.0  # => agreement
-        if dist_a_2 < dist_a_1:
-            return -1.0  # => disagreement
-        else:
-            return 0.0  # => uncertainty
-
-
-    surveyAnswers["embedding_agreement"] = surveyAnswers.apply(
-        lambda x: getEmbeddingAgreementScore(x, embeddings), axis=1
+def _(encoder, get_embedding, np, pd, track_df):
+    embedding_df = pd.DataFrame(
+        np.stack(
+            track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values
+        ),
+        columns=[f"emb_{e}" for e in range(192)],
+        index=track_df.index,
     )
-    surveyAnswers["embedding_agreement"].mean()
-    return (getEmbeddingAgreementScore,)
+    embedding_df
+    return (embedding_df,)
+
+
+@app.cell
+def _(embedding_df, getGlobalDistanceAgreement):
+    embedding_gda_df = getGlobalDistanceAgreement(
+        embedding_df, distance_algorithm="euclidean"
+    )
+    embedding_gda_df.describe()
+    return
 
 
 @app.cell
@@ -309,23 +450,24 @@ def _(MODEL_FOLDER, encoder, os, torch):
 
 
 @app.cell
-def _(SAMPLE_RATE, encoder, get_trimmed_audio, track_df):
-    ft_embeddings = track_df.song_path.apply(
-        lambda x: encoder.encode_waveform(get_trimmed_audio(x, SAMPLE_RATE))
-        .cpu()
-        .numpy()
-        .squeeze()
+def _(encoder, get_embedding, np, pd, track_df):
+    ft_embedding_df = pd.DataFrame(
+        np.stack(
+            track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values
+        ),
+        columns=[f"emb_{e}" for e in range(192)],
+        index=track_df.index,
     )
-    ft_embeddings.shape
-    return (ft_embeddings,)
+    ft_embedding_df
+    return (ft_embedding_df,)
 
 
 @app.cell
-def _(ft_embeddings, getEmbeddingAgreementScore, surveyAnswers):
-    surveyAnswers["ft_embedding_agreement"] = surveyAnswers.apply(
-        lambda x: getEmbeddingAgreementScore(x, ft_embeddings), axis=1
+def _(ft_embedding_df, getGlobalDistanceAgreement):
+    ft_embedding_gda_df = getGlobalDistanceAgreement(
+        ft_embedding_df, distance_algorithm="euclidean"
     )
-    surveyAnswers["ft_embedding_agreement"].mean()
+    ft_embedding_gda_df.describe()
     return
 
 
@@ -341,30 +483,43 @@ def _(mo):
 def _():
     import opensmile
 
-    smile = opensmile.Smile(
+    smile_gemaps = opensmile.Smile(
         feature_set=opensmile.FeatureSet.eGeMAPSv02,
         feature_level=opensmile.FeatureLevel.Functionals,
     )
-    smile.feature_names
-    return (smile,)
+    return opensmile, smile_gemaps
 
 
 @app.cell
-def _(SAMPLE_RATE, get_trimmed_audio, pd, smile, track_df):
-    def get_feature_set(song_path):
+def _(SAMPLE_RATE, get_trimmed_audio):
+    def get_feature_set(song_path, sm):
         trimmed_audio = get_trimmed_audio(song_path, sr=SAMPLE_RATE)
-        return smile.process_signal(trimmed_audio, SAMPLE_RATE).values[0]
+        return sm.process_signal(trimmed_audio, SAMPLE_RATE).values[0]
+
+    return
 
 
-    gemaps_features = pd.DataFrame(track_df.song_path.apply(get_feature_set).tolist(), columns=smile.feature_names, index=track_df.index)
-    gemaps_features
-    return (gemaps_features,)
+@app.cell
+def _(DATASET_FOLDER, os):
+    gemaps_feature_path = os.path.join(
+        DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy"
+    )
+    return (gemaps_feature_path,)
 
 
 @app.cell
 def _():
     """
-    gemaps_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy")
+    gemaps_features = pd.DataFrame(
+        track_df.song_path.apply(
+            lambda x: get_feature_set(x, smile_gemaps)
+        ).tolist(),
+        columns=smile_gemaps.feature_names,
+        index=track_df.index,
+    )
+    gemaps_features
+
+
     with open(gemaps_feature_path, "wb") as npyfile:
         np.save(npyfile, gemaps_features.values)
     """
@@ -372,6 +527,17 @@ def _():
 
 
 @app.cell
+def _(gemaps_feature_path, np, pd, smile_gemaps, track_df):
+    gemaps_features_df = pd.DataFrame(
+        np.load(gemaps_feature_path),
+        columns=smile_gemaps.feature_names,
+        index=track_df.index,
+    )
+    gemaps_features_df
+    return (gemaps_features_df,)
+
+
+@app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
     ## Single Feature Agreement
@@ -380,50 +546,21 @@ def _(mo):
 
 
 @app.cell
-def _(gemaps_features, getAgreementScore):
-    def getFeatureAgreementScore(x, a_1, a_2):
-        dist_a_1 = abs(x - a_1)
-        dist_a_2 = abs(x - a_2)
-        if dist_a_1 < dist_a_2:
-            return 1.0  # => agreement
-        if dist_a_2 < dist_a_1:
-            return -1.0  # => disagreement
-        else:
-            return 0.0  # => uncertainty
-
-    def getSingleGeMAPSAgreement(answer, feature: str):
-        x = gemaps_features.loc[answer["track_id_X"]][feature]
-        a_1 = gemaps_features.loc[answer["track_id_1"]][feature]
-        a_2 = gemaps_features.loc[answer["track_id_2"]][feature]
-        return getAgreementScore(x, a_1, a_2)
-    return (getSingleGeMAPSAgreement,)
-
-
-@app.cell
-def _(getSingleGeMAPSAgreement, mo, pd, smile, surveyAnswers):
-    gemaps_agreement = pd.DataFrame({
-        f"{f}_agreement": surveyAnswers.apply(
-            lambda row, f=f: getSingleGeMAPSAgreement(row, f), axis=1
-        )
-        for f in mo.status.progress_bar(smile.feature_names)
-    }, index=surveyAnswers.index)
-    gemaps_agreement
-    return
-
-
-@app.cell
-def _(smile, sns, surveyAnswers):
-    gemaps_agreement_mean_values = {
-        feat: surveyAnswers[f"{feat}_agreement"].mean() for feat in smile.feature_names
-    }
-
-    top_10_gemaps_agreement_mean_values = dict(
-        sorted(gemaps_agreement_mean_values.items(), key=lambda x: x[1], reverse=True)[:10]
+def _(gemaps_features_df, getAllAgreements):
+    gemaps_agreements = getAllAgreements(
+        gemaps_features_df, gemaps_features_df.columns
     )
+    gemaps_agreements
+    return (gemaps_agreements,)
+
+
+@app.cell
+def _(gemaps_agreements, get_mean_values, sns):
+    top_gemaps_score_values = get_mean_values(gemaps_agreements, top_x=15)
 
     sns.barplot(
-        y=list(top_10_gemaps_agreement_mean_values.keys()),
-        x=list(top_10_gemaps_agreement_mean_values.values()),
+        y=list(top_gemaps_score_values.keys()),
+        x=list(top_gemaps_score_values.values()),
     )
     return
 
@@ -437,28 +574,111 @@ def _(mo):
 
 
 @app.cell
-def _(euclidean, gemaps_features, surveyAnswers):
-    def getGeMAPSAgreementScore(answer):
-        x = gemaps_features.loc[answer["track_id_X"]].values
-        a_1 = gemaps_features.loc[answer["track_id_1"]].values
-        a_2 = gemaps_features.loc[answer["track_id_2"]].values
-        dist_a_1 = euclidean(x, a_1)
-        dist_a_2 = euclidean(x, a_2)
-        if dist_a_1 < dist_a_2:
-            return 1.0  # => agreement
-        if dist_a_2 < dist_a_1:
-            return -1.0  # => disagreement
-        else:
-            return 0.0  # => uncertainty
-
-
-    surveyAnswers["gemaps_agreement"] = surveyAnswers.apply(getGeMAPSAgreementScore, axis=1)
-    surveyAnswers["gemaps_agreement"].mean()
+def _(gemaps_features_df, getGlobalDistanceAgreement):
+    gemaps_gda_df = getGlobalDistanceAgreement(
+        gemaps_features_df, distance_algorithm="euclidean"
+    )
+    gemaps_gda_df.describe()
     return
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""
+    # ComParE Feature Set
+    """)
+    return
+
+
+@app.cell
+def _(opensmile):
+    smile_compare = opensmile.Smile(
+        feature_set=opensmile.FeatureSet.ComParE_2016,
+        feature_level=opensmile.FeatureLevel.Functionals,
+    )
+    return (smile_compare,)
+
+
+@app.cell
+def _(DATASET_FOLDER, os):
+    compare_feature_path = os.path.join(
+        DATASET_FOLDER, "fma_large_feature_sets", "compare.npy"
+    )
+    return (compare_feature_path,)
+
+
+@app.cell
 def _():
+    """
+    compare_features = pd.DataFrame(
+        track_df.song_path.apply(
+            lambda x: get_feature_set(x, smile_compare)
+        ).tolist(),
+        columns=smile_compare.feature_names,
+        index=track_df.index,
+    )
+    compare_features
+
+
+    with open(compare_feature_path, "wb") as npyfile:
+        np.save(npyfile, compare_features.values)
+    """
+    return
+
+
+@app.cell
+def _(compare_feature_path, np, pd, smile_compare, track_df):
+    compare_features_df = pd.DataFrame(
+        np.load(compare_feature_path),
+        columns=smile_compare.feature_names,
+        index=track_df.index,
+    )
+    compare_features_df
+    return (compare_features_df,)
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## Single Feature Agreement
+    """)
+    return
+
+
+@app.cell
+def _(compare_features_df, getAllAgreements):
+    compare_agreements = getAllAgreements(
+        compare_features_df, compare_features_df.columns
+    )
+    compare_agreements
+    return (compare_agreements,)
+
+
+@app.cell
+def _(compare_agreements, get_mean_values, sns):
+    top_compare_score_values = get_mean_values(compare_agreements, top_x=15)
+
+    sns.barplot(
+        y=list(top_compare_score_values.keys()),
+        x=list(top_compare_score_values.values()),
+    )
+    return
+
+
+@app.cell
+def _(mo):
+    mo.md(r"""
+    ## Feature Set Agreement
+    """)
+    return
+
+
+@app.cell
+def _(compare_features_df, getGlobalDistanceAgreement):
+    compare_gda_df = getGlobalDistanceAgreement(
+        compare_features_df, distance_algorithm="euclidean"
+    )
+    compare_gda_df.describe()
     return
 
 
