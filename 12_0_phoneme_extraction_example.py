@@ -14,25 +14,26 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
-    import pandas as pd
-    import torch
-    import matplotlib.pyplot as plt
-    import numpy as np
     import os
-    import librosa
     import pathlib
 
-    from src.utils import get_trimmed_audio
+    import librosa
+    import marimo as mo
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    import torch
+
     from src.globals import (
+        AUDIO_FOLDER,
         CSV_FOLDER,
         DATASET_FOLDER,
-        TRACKS_PATH,
-        AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
         MODEL_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
     )
+    from src.utils import get_trimmed_audio
 
     return (
         CSV_FOLDER,
@@ -92,9 +93,7 @@ def _(VOCAL_PATH, pathlib):
 @app.cell
 def _(SAMPLE_RATE, VOCAL_PATH, get_trimmed_audio, np):
     # y, sr = librosa.load(VOCAL_PATH, sr=SAMPLE_RATE, mono=True)
-    y_snippets = get_trimmed_audio(
-        VOCAL_PATH, sr=SAMPLE_RATE, to_tensor=False, concat=False, min_duration=2
-    )
+    y_snippets = get_trimmed_audio(VOCAL_PATH, sr=SAMPLE_RATE, to_tensor=False, concat=False, min_duration=2)
     y = np.concatenate(y_snippets, axis=-1)
     return y, y_snippets
 
@@ -117,9 +116,7 @@ def _(SAMPLE_RATE, librosa, np, plt, y):
 
     fig, ax = plt.subplots()
     S_dB = librosa.power_to_db(S, ref=np.max)
-    img = librosa.display.specshow(
-        S_dB, x_axis="time", y_axis="mel", sr=SAMPLE_RATE, fmax=8000, ax=ax
-    )
+    img = librosa.display.specshow(S_dB, x_axis="time", y_axis="mel", sr=SAMPLE_RATE, fmax=8000, ax=ax)
     fig.colorbar(img, ax=ax, format="%+2.0f dB")
     ax.set(title="Mel-frequency spectrogram")
     return
@@ -185,9 +182,7 @@ def _(SAMPLE_RATE, asr_model, y_snippets):
             asr_text = f.read()
     """
 
-    asr_results = [
-        asr_model.transcribe(audio=(s, SAMPLE_RATE))[0] for s in y_snippets
-    ]
+    asr_results = [asr_model.transcribe(audio=(s, SAMPLE_RATE))[0] for s in y_snippets]
     asr_texts = [asr.text for asr in asr_results]
     asr_texts[0]
     return asr_results, asr_texts
@@ -203,11 +198,9 @@ def _(SAMPLE_RATE, mo, y_snippets):
 def _(asr_result, asr_results):
     import langcodes
 
-
     def to_language_code(lang: str) -> str:
         code = langcodes.find(lang)
         return f"{code.language}"
-
 
     try:
         asr_lanugage = (
@@ -252,9 +245,7 @@ def _(MODEL_FOLDER, os):
 
 @app.cell
 def _(PhonemeTimestampAligner, fa_model_path):
-    aligner = PhonemeTimestampAligner(
-        preset="asr_lanugage", cupe_ckpt_path=fa_model_path
-    )
+    aligner = PhonemeTimestampAligner(preset="asr_lanugage", cupe_ckpt_path=fa_model_path)
     return (aligner,)
 
 
@@ -368,9 +359,7 @@ def _(plt, torch):
                     fontsize=12,
                     fontweight="bold",
                     color="white",
-                    bbox=dict(
-                        boxstyle="round,pad=0.3", facecolor="red", alpha=0.8
-                    ),
+                    bbox=dict(boxstyle="round,pad=0.3", facecolor="red", alpha=0.8),
                 )
 
             frame_pos += count
@@ -403,9 +392,7 @@ def _(aligner, audios, fa_restult, plot_mel_phonemes):
         select_key="phoneme_id",
     )
 
-    frames_assorted = [
-        aligner.phoneme_id_to_label.get(pid, "...") for pid in frames_assorted
-    ]
+    frames_assorted = [aligner.phoneme_id_to_label.get(pid, "...") for pid in frames_assorted]
 
     compress_framesed = aligner.compress_frames(frames_assorted)
 

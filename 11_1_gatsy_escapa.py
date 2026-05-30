@@ -14,23 +14,25 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
     import os
-    import seaborn as sns
+
+    import marimo as mo
     import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
 
     from src.dataset.triplet_dataset import TripletDataset
     from src.globals import (
+        AUDIO_FOLDER,
         CSV_FOLDER,
         DATASET_FOLDER,
-        TRACKS_PATH,
-        AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
         MODEL_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
     )
+
     return (
         CSV_FOLDER,
         DATASET_FOLDER,
@@ -81,31 +83,19 @@ def _(CSV_FOLDER, os, pd):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -113,9 +103,7 @@ def _(DATASET_FOLDER, os, pd):
 
 @app.cell
 def _(full_dataset, track_df):
-    track_df["artist_id"] = track_df.apply(
-        lambda x: full_dataset.loc[x.name].artist_id, axis=1
-    )
+    track_df["artist_id"] = track_df.apply(lambda x: full_dataset.loc[x.name].artist_id, axis=1)
     track_df
     return
 
@@ -153,7 +141,6 @@ def _(pd, surveyAnswers_, surveyQuestions, track_df):
             }
         )
 
-
     surveyAnswers_[
         [
             "track_id_X",
@@ -185,15 +172,16 @@ def _(mo):
 @app.cell
 def _():
     # additional imports
-    import torchaudio
     import torch
     import torch.nn.functional as F
-    from torch.optim import Adam
-    from torch.utils.data import Dataset, DataLoader
-    from speechbrain.inference.encoders import MelSpectrogramEncoder
+    import torchaudio
     from sklearn.model_selection import train_test_split
+    from speechbrain.inference.encoders import MelSpectrogramEncoder
+    from torch.optim import Adam
+    from torch.utils.data import DataLoader, Dataset
 
     from src.utils import get_trimmed_audio
+
     return (
         DataLoader,
         MelSpectrogramEncoder,
@@ -250,7 +238,6 @@ def _(SAMPLE_RATE, encoder, get_trimmed_audio, np, track_df):
         trimmed_audio = get_trimmed_audio(song_path, sr=SAMPLE_RATE)
         return encoder.encode_waveform(trimmed_audio).cpu().numpy().squeeze()
 
-
     x = np.stack(track_df.song_path.apply(get_embedding).values)
     track_df["edge_id"] = range(len(track_df))
     return (x,)
@@ -266,16 +253,10 @@ def _(
     track_df,
     train_test_split,
 ):
-    train_df, test_df = train_test_split(
-        surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE
-    )
+    train_df, test_df = train_test_split(surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE)
 
-    train_dataset = TripletDataset(
-        triplet_df=train_df, node_df=track_df, node_id_key="edge_id"
-    )
-    test_dataset = TripletDataset(
-        triplet_df=test_df, node_df=track_df, node_id_key="edge_id"
-    )
+    train_dataset = TripletDataset(triplet_df=train_df, node_df=track_df, node_id_key="edge_id")
+    test_dataset = TripletDataset(triplet_df=test_df, node_df=track_df, node_id_key="edge_id")
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
@@ -302,6 +283,7 @@ def _(mo):
 def _():
     from src.gatsy.architectures import GATSY
     from src.gatsy.model import Trainer
+
     return GATSY, Trainer
 
 
@@ -320,9 +302,7 @@ def _(GATSY):
 
 @app.cell
 def _(MODEL_FOLDER, os, torch):
-    pt_model_path = os.path.join(
-        MODEL_FOLDER, "GATSY", "pretrained", "GAT_7_3_1_0.001_0.0_triplet_False.pt"
-    )
+    pt_model_path = os.path.join(MODEL_FOLDER, "GATSY", "pretrained", "GAT_7_3_1_0.001_0.0_triplet_False.pt")
 
     pt_checkpoint = torch.load(pt_model_path, weights_only=False)
     state_dict = pt_checkpoint.state_dict()
@@ -413,9 +393,7 @@ def _(
     }
     trainer = Trainer(**trainer_params)
     trainer.train()
-    loss_reduction = -1 * (
-        trainer.best_test_loss - trainer.checkpoint["loss_test"][0]
-    )
+    loss_reduction = -1 * (trainer.best_test_loss - trainer.checkpoint["loss_test"][0])
     loss_recuction_perc = 100 * loss_reduction / trainer.checkpoint["loss_test"][0]
 
     print(f"Loss reduction {loss_reduction} ({loss_recuction_perc:.2f}%)")

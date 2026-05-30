@@ -15,25 +15,20 @@ def _(mo):
 @app.cell
 def _():
     # Initial Imports
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
     import os
     import sys
+
+    import marimo as mo
+    import numpy as np
+    import pandas as pd
 
     # utils.py file
     # in: FMA: A Dataset For Music Analysis
     # Defferrard, M., Benzi, K., Vandergheynst, P., & Bresson, X. (2017). FMA: A Dataset for Music Analysis. In 18th International Society for Music Information Retrieval Conference (ISMIR).
     # available under "https://github.com/mdeff/fma"
-    from src.FMA.utils import load, get_audio_path
-    from src.globals import (
-        CSV_FOLDER,
-        TRACKS_PATH,
-        AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
-        STEMS_FOLDER
-    )
+    from src.FMA.utils import get_audio_path, load
+    from src.globals import AUDIO_FOLDER, CSV_FOLDER, STEMS_FOLDER, TRACKS_PATH, UVR_MODEL_PATH
+
     return (
         AUDIO_FOLDER,
         CSV_FOLDER,
@@ -67,9 +62,7 @@ def _(mo):
 @app.cell
 def _(AUDIO_FOLDER, TRACKS_PATH, get_audio_path, load):
     tracks_df = load(TRACKS_PATH)
-    tracks_df["song_path"] = [
-        get_audio_path(AUDIO_FOLDER, i) for i in tracks_df.index
-    ]
+    tracks_df["song_path"] = [get_audio_path(AUDIO_FOLDER, i) for i in tracks_df.index]
     tracks_df
     return (tracks_df,)
 
@@ -101,7 +94,7 @@ def _(pd, tracks_df):
             "license": tracks_df["track", "license"],
             "publisher": tracks_df["track", "publisher"],
             "lyricist": tracks_df["track", "lyricist"],
-            "title": tracks_df["track", "title"]
+            "title": tracks_df["track", "title"],
         }
     )
     fma.set_index("track_id", inplace=True)
@@ -166,9 +159,10 @@ def _(mo):
 
 @app.cell
 def _(STEMS_FOLDER, UVR_MODEL_PATH):
-    from audio_separator.separator import Separator
     import logging
     import shutil
+
+    from audio_separator.separator import Separator
 
     UVR_MODEL_NAME = "model_mel_band_roformer_ep_3005_sdr_11.4360.ckpt"
     OUTPUT_FORMAT = "MP3"
@@ -206,18 +200,15 @@ def _(STEMS_FOLDER, fma_reduced, os, separator, shutil):
             vocals_path = os.path.join(STEMS_FOLDER, f"{output_names['Vocals']}.mp3")
             if os.path.exists(vocals_path):
                 return vocals_path
-            separator.separate(
-                fma_reduced.loc[track_id].song_path, output_names
-            )
+            separator.separate(fma_reduced.loc[track_id].song_path, output_names)
             for name in ["Vocals", "Instrumental"]:
-                false_path = os.path.join(
-                    STEMS_FOLDER, f"{output_names[name].replace('/', '_')}.mp3"
-                )
+                false_path = os.path.join(STEMS_FOLDER, f"{output_names[name].replace('/', '_')}.mp3")
                 true_path = os.path.join(STEMS_FOLDER, f"{output_names[name]}.mp3")
                 shutil.move(false_path, true_path)
         except Exception as e:
             print(e)
             return None
+
     return (processFile,)
 
 
@@ -255,7 +246,7 @@ def _(CSV_FOLDER, os, pd):
 
 @app.cell
 def _(fma, track_df):
-    track_df["artist_id"] = track_df.apply(lambda x: fma.loc[x.name, 'artist_id'], axis=1)
+    track_df["artist_id"] = track_df.apply(lambda x: fma.loc[x.name, "artist_id"], axis=1)
     return
 
 

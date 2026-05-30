@@ -14,24 +14,24 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
+    import os
+
     import marimo as mo
     import numpy as np
     import pandas as pd
-    import os
 
-    from src.globals import CSV_FOLDER
-    from src.utils import get_trimmed_audio
-    from src.FMA.utils import load, get_audio_path
+    from src.FMA.utils import get_audio_path, load
     from src.globals import (
-        CSV_FOLDER,
-        TRACKS_PATH,
         AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
+        CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
     )
+    from src.utils import get_trimmed_audio
+
     return CSV_FOLDER, mo, os, pd
 
 
@@ -79,9 +79,10 @@ def _(mo):
 @app.cell
 def _(os):
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    import json
+
     import librosa as lr
     import tensorflow as tf
-    import json
 
     tf.debugging.set_log_device_placement(True)
     print(tf.config.list_physical_devices("GPU"))

@@ -25,6 +25,7 @@ def _():
 
     from src.globals import CSV_FOLDER
     from src.utils import get_trimmed_audio
+
     return CSV_FOLDER, get_trimmed_audio, mo, np, os, pd
 
 
@@ -40,9 +41,7 @@ def _(mo):
 def _(CSV_FOLDER, os, pd):
     subpath = "LargeDataset"
     filename = "dataset_no_overlaps_260315_171700.csv"
-    df = pd.read_csv(
-        os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id"
-    )
+    df = pd.read_csv(os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id")
     df
     return (df,)
 
@@ -71,9 +70,7 @@ def _():
     import torchaudio
     from speechbrain.inference.encoders import MelSpectrogramEncoder
 
-    encoder = MelSpectrogramEncoder.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
-    )
+    encoder = MelSpectrogramEncoder.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb-mel-spec")
     return (encoder,)
 
 
@@ -93,12 +90,7 @@ def _(df, encoder, get_trimmed_audio, mask, np):
 
     embeddings = np.stack(
         df[mask]
-        .vocal_audio_path.apply(
-            lambda path: encoder.encode_waveform(get_trimmed_audio(path))
-            .cpu()
-            .numpy()
-            .squeeze()
-        )
+        .vocal_audio_path.apply(lambda path: encoder.encode_waveform(get_trimmed_audio(path)).cpu().numpy().squeeze())
         .values
     )
     return

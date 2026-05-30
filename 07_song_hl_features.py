@@ -14,33 +14,30 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
+    import os
+
     import marimo as mo
     import numpy as np
     import pandas as pd
-    import os
 
-    from src.globals import CSV_FOLDER
-
-    from src.FMA.utils import load, get_audio_path
+    from src.FMA.utils import get_audio_path, load
     from src.globals import (
-        CSV_FOLDER,
-        TRACKS_PATH,
         AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
+        CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
     )
+
     return CSV_FOLDER, DATASET_FOLDER, MODEL_FOLDER, mo, np, os, pd
 
 
 @app.cell
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
-    songs = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="trackID"
-    )
+    songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="trackID")
     songs
     return (songs,)
 
@@ -121,7 +118,7 @@ def _(mo):
 @app.cell
 def _():
     """
-    Initial Test Code and Genre Prediction 
+    Initial Test Code and Genre Prediction
 
     # https://essentia.upf.edu/models.html#genre-discogs400
     # embeddings:
@@ -185,20 +182,16 @@ def _(mo):
 @app.cell
 def _(os):
     os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-    import librosa as lr
-    import essentia as es
-    from essentia import Pool
-    from essentia.standard import (
-        MonoLoader,
-        TensorflowPredictEffnetDiscogs,
-        TensorflowPredict2D,
-    TempoCNN
-    )
-    import tensorflow as tf
     import json
 
+    import essentia as es
+    import librosa as lr
+    import tensorflow as tf
+    from essentia import Pool
+    from essentia.standard import MonoLoader, TempoCNN, TensorflowPredict2D, TensorflowPredictEffnetDiscogs
+
     tf.debugging.set_log_device_placement(True)
-    print(tf.config.list_physical_devices('GPU'))
+    print(tf.config.list_physical_devices("GPU"))
     return (
         MonoLoader,
         TempoCNN,
@@ -212,10 +205,8 @@ def _(os):
 @app.cell
 def _(MODEL_FOLDER, TensorflowPredictEffnetDiscogs, os, tf):
     # generate embeddings
-    embeddingFilename = os.path.join(
-        MODEL_FOLDER, "effnet", "discogs-effnet-bs64-1.pb"
-    )
-    with tf.device('/GPU:0'):
+    embeddingFilename = os.path.join(MODEL_FOLDER, "effnet", "discogs-effnet-bs64-1.pb")
+    with tf.device("/GPU:0"):
         embedding_model = TensorflowPredictEffnetDiscogs(graphFilename=embeddingFilename, output="PartitionedCall:1")
     return (embedding_model,)
 
@@ -250,7 +241,8 @@ def _(MonoLoader, embedding_model, mo, os, pd, track_df):
 def _(MODEL_FOLDER, TensorflowPredict2D, embeddings_list, mo, os, track_df):
     # approachability
     approachabilityModelName = os.path.join(
-        MODEL_FOLDER, "approachability", "approachability_regression-discogs-effnet-1.pb")
+        MODEL_FOLDER, "approachability", "approachability_regression-discogs-effnet-1.pb"
+    )
     approachabilityModel = TensorflowPredict2D(graphFilename=approachabilityModelName, output="model/Identity")
 
     track_df["pred_approachability"] = [
@@ -286,15 +278,17 @@ def _(
     danceModelName = os.path.join(MODEL_FOLDER, "danceability", "danceability-discogs-effnet-1.pb")
     danceModel = TensorflowPredict2D(graphFilename=danceModelName, output="model/Softmax")
 
-    track_df[["pred_danceable", "pred_not_danceable"]] = np.vstack([
-        danceModel(emb).mean(axis=0)
-        for emb in mo.status.progress_bar(
-            embeddings_list,
-            title="Predicting Danceability",
-            show_rate=True,
-            show_eta=True,
-        )
-    ])
+    track_df[["pred_danceable", "pred_not_danceable"]] = np.vstack(
+        [
+            danceModel(emb).mean(axis=0)
+            for emb in mo.status.progress_bar(
+                embeddings_list,
+                title="Predicting Danceability",
+                show_rate=True,
+                show_eta=True,
+            )
+        ]
+    )
 
     del danceModelName, danceModel
     track_df
@@ -304,8 +298,7 @@ def _(
 @app.cell
 def _(MODEL_FOLDER, TensorflowPredict2D, embeddings_list, mo, os, track_df):
     # engageability
-    engageModelName = os.path.join(
-        MODEL_FOLDER, "engagement", "engagement_regression-discogs-effnet-1.pb")
+    engageModelName = os.path.join(MODEL_FOLDER, "engagement", "engagement_regression-discogs-effnet-1.pb")
     engageModel = TensorflowPredict2D(graphFilename=engageModelName, output="model/Identity")
 
     track_df["pred_engagement"] = [
@@ -341,15 +334,17 @@ def _(
     with open(moodModelMedatadaPath) as json_file:
         moodModelClasses = json.load(json_file)["classes"]
 
-    track_df[["pred_mood_and_theme"]] = np.vstack([
-        moodModelClasses[moodModel(emb).mean(axis=0).argmax()]
-        for emb in mo.status.progress_bar(
-            embeddings_list,
-            title="Predicting Mood and Theme",
-            show_rate=True,
-            show_eta=True,
-        )
-    ])
+    track_df[["pred_mood_and_theme"]] = np.vstack(
+        [
+            moodModelClasses[moodModel(emb).mean(axis=0).argmax()]
+            for emb in mo.status.progress_bar(
+                embeddings_list,
+                title="Predicting Mood and Theme",
+                show_rate=True,
+                show_eta=True,
+            )
+        ]
+    )
 
     del moodModelName, moodModel, moodModelMedatadaPath, moodModelClasses
     track_df

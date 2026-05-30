@@ -14,14 +14,17 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
     import os
+    import shutil
+
+    import librosa
+    import marimo as mo
+    import matplotlib.pyplot as plt
     import pandas as pd
+
     from src.globals import DATASET_FOLDER
     from src.utils import get_onsets_es
-    import librosa
-    import matplotlib.pyplot as plt
-    import shutil
+
     return DATASET_FOLDER, mo, os, pd, shutil
 
 
@@ -37,9 +40,7 @@ def _(mo):
 def _(CSV_FOLDER, os, pd):
     subpath = "LargeDataset/triplet_selection"
     filename = "dataset_vq3_finished.csv"
-    df = pd.read_csv(
-        os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id"
-    )
+    df = pd.read_csv(os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id")
     df
     return (df,)
 
@@ -56,6 +57,7 @@ def _(mo):
 def _(DATASET_FOLDER, os, shutil):
     OLD_PATH = DATASET_FOLDER
     NEW_PATH = DATASET_FOLDER.replace("MusicVoiceCluster", "Release")
+
     def moveFiles(row):
         old_song_path = row["song_path"]
         old_vocal_path = row["vocal_path"]
@@ -66,6 +68,7 @@ def _(DATASET_FOLDER, os, shutil):
         os.makedirs(os.path.dirname(new_vocal_path), exist_ok=True)
         shutil.move(old_song_path, new_song_path)
         shutil.move(old_vocal_path, new_vocal_path)
+
     return (moveFiles,)
 
 

@@ -14,27 +14,22 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
     import os
     import sys
+
     import altair as alt
+    import marimo as mo
+    import numpy as np
+    import pandas as pd
+    from sklearn.metrics import cohen_kappa_score
 
     # utils.py file
     # in: FMA: A Dataset For Music Analysis
     # Defferrard, M., Benzi, K., Vandergheynst, P., & Bresson, X. (2017). FMA: A Dataset for Music Analysis. In 18th International Society for Music Information Retrieval Conference (ISMIR).
     # available under "https://github.com/mdeff/fma"
-    from src.FMA.utils import load, get_audio_path
-    from src.globals import (
-        CSV_FOLDER,
-        DATASET_FOLDER,
-        TRACKS_PATH,
-        AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
-    )
-    from sklearn.metrics import cohen_kappa_score
+    from src.FMA.utils import get_audio_path, load
+    from src.globals import AUDIO_FOLDER, CSV_FOLDER, DATASET_FOLDER, STEMS_FOLDER, TRACKS_PATH, UVR_MODEL_PATH
+
     return DATASET_FOLDER, alt, mo, os, pd
 
 
@@ -49,6 +44,7 @@ def _(pd):
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
+
     return (parse_js_date,)
 
 
@@ -62,15 +58,9 @@ def _(mo):
 
 @app.cell
 def _(SURVEY_FOLDER, os, parse_js_date, pd):
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
@@ -80,12 +70,8 @@ def _(SURVEY_FOLDER, os, parse_js_date, pd):
 
 @app.cell
 def _(participants):
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     return
 
@@ -100,27 +86,11 @@ def _(mo):
 
 @app.cell
 def _(participants, surveyAnswers, surveyQuestions):
-    ab_ratio_a = (
-        100
-        * len(surveyAnswers[surveyAnswers.answer_1 == "A"])
-        / len(surveyAnswers)
-    )
-    ab_ratio_b = (
-        100
-        * len(surveyAnswers[surveyAnswers.answer_1 == "B"])
-        / len(surveyAnswers)
-    )
+    ab_ratio_a = 100 * len(surveyAnswers[surveyAnswers.answer_1 == "A"]) / len(surveyAnswers)
+    ab_ratio_b = 100 * len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(surveyAnswers)
 
-    instruments_on_yes = (
-        100
-        * len(surveyAnswers[surveyAnswers.backgroundMusic])
-        / len(surveyAnswers)
-    )
-    instruments_on_no = (
-        100
-        * len(surveyAnswers[~surveyAnswers.backgroundMusic])
-        / len(surveyAnswers)
-    )
+    instruments_on_yes = 100 * len(surveyAnswers[surveyAnswers.backgroundMusic]) / len(surveyAnswers)
+    instruments_on_no = 100 * len(surveyAnswers[~surveyAnswers.backgroundMusic]) / len(surveyAnswers)
 
     print(f"""
     Total number of participants: {len(participants)}
@@ -153,9 +123,7 @@ def _(participants, surveyAnswers, surveyQuestions):
 @app.cell
 def _(alt, participants):
     _chart = (
-        alt.Chart(
-            participants[participants.surveyCompleted][["completionMinutes"]]
-        )  # <-- replace with data
+        alt.Chart(participants[participants.surveyCompleted][["completionMinutes"]])  # <-- replace with data
         .mark_bar()
         .encode(
             x=alt.X(
@@ -212,6 +180,7 @@ def _(surveyAnswers):
         instruments_on = None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
         agreement = None if n == 0 else max(a, b)
         return {"num_answers": n, "A_perc": a, "B_perc": b, "agreement": agreement, "instruments_on": instruments_on}
+
     return (get_perc_values,)
 
 
@@ -278,8 +247,6 @@ def _(
     surveyQuestions,
 ):
     po_i_same = surveyQuestions[~(instrument_mask1 & instrument_mask2) & multi_answer_mask].agreement.mean()
-
-
 
     kappa_i_same = (po_i_same - pe) / (1 - pe)
     print(f"""

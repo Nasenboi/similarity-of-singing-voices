@@ -15,14 +15,16 @@ def _(mo):
 @app.cell
 def _():
     # Initial Imports
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
-    import torch
     import os
+
+    import marimo as mo
+    import numpy as np
+    import pandas as pd
+    import torch
 
     from src.globals import CSV_FOLDER, DATASET_FOLDER
     from src.utils import get_trimmed_audio
+
     return CSV_FOLDER, DATASET_FOLDER, get_trimmed_audio, mo, np, os, pd
 
 
@@ -38,9 +40,7 @@ def _(mo):
 def _(CSV_FOLDER, os, pd):
     subpath = "LargeDataset/triplet_selection"
     filename = "dataset_vq3.csv"
-    df = pd.read_csv(
-        os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id"
-    )
+    df = pd.read_csv(os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id")
     df
     return (df,)
 
@@ -55,12 +55,8 @@ def _(mo):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    embeddings_path = os.path.join(
-        DATASET_FOLDER, "fma_large_embeddings", f"mel_spec_enc_nlognK.safetensors"
-    )
-    triplets_path = os.path.join(
-        DATASET_FOLDER, "fma_large_triplets", f"mel_spec_enc_nlognK.npy"
-    )
+    embeddings_path = os.path.join(DATASET_FOLDER, "fma_large_embeddings", f"mel_spec_enc_nlognK.safetensors")
+    triplets_path = os.path.join(DATASET_FOLDER, "fma_large_triplets", f"mel_spec_enc_nlognK.npy")
     return embeddings_path, triplets_path
 
 
@@ -99,9 +95,7 @@ def _():
     import torchaudio
     from speechbrain.inference.encoders import MelSpectrogramEncoder
 
-    embedder = MelSpectrogramEncoder.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
-    )
+    embedder = MelSpectrogramEncoder.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb-mel-spec")
     return (embedder,)
 
 
@@ -121,18 +115,14 @@ def _(X, df, embedder, embeddings_path, triplets_path):
     from maxent_triplet_selector import MaxEntTripletSelector
 
     selector = MaxEntTripletSelector(embedder=embedder)
-    best_batch = selector.get_best_batch(
-        X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path
-    )
+    best_batch = selector.get_best_batch(X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path)
     best_batch
     return best_batch, selector
 
 
 @app.cell
 def _(X, df, embeddings_path, selector, triplets_path):
-    selector.get_best_batch(
-        X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path, use_index_col=False
-    )
+    selector.get_best_batch(X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path, use_index_col=False)
     return
 
 
@@ -170,6 +160,7 @@ def _(selector):
 @app.cell
 def _():
     from sklearn.preprocessing import StandardScaler
+
     return (StandardScaler,)
 
 
@@ -185,6 +176,7 @@ def _(StandardScaler, mean_embeddings):
 @app.cell
 def _():
     from umap import UMAP
+
     return (UMAP,)
 
 
@@ -200,9 +192,7 @@ def _(UMAP):
 def _(UMAP, df, mean_embeddings_scaled, pd, umap_settings):
     df_joined = df
     for dim in [2, 3]:
-        reducer = UMAP(
-            n_components=dim, **umap_settings
-        )
+        reducer = UMAP(n_components=dim, **umap_settings)
         umap_embeddings = reducer.fit_transform(mean_embeddings_scaled)
 
         embedding_df = pd.DataFrame(

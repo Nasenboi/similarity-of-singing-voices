@@ -15,13 +15,16 @@ def _(mo):
 @app.cell
 def _():
     # initial imports
-    import marimo as mo
     import os
+
+    import librosa
+    import marimo as mo
+    import matplotlib.pyplot as plt
     import pandas as pd
+
     from src.globals import CSV_FOLDER
     from src.utils import get_onsets_es
-    import librosa
-    import matplotlib.pyplot as plt
+
     return CSV_FOLDER, get_onsets_es, librosa, mo, os, pd, plt
 
 
@@ -37,9 +40,7 @@ def _(mo):
 def _(CSV_FOLDER, os, pd):
     subpath = "LargeDataset/triplet_selection"
     filename = "dataset_vq3_finished.csv"
-    df = pd.read_csv(
-        os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id"
-    )
+    df = pd.read_csv(os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id")
     # mask = (df.voice_quality == 3) & (~df.multiple_voices)
     # df = df[mask]
     # .drop(columns="Unnamed: 0")
@@ -78,7 +79,6 @@ def _(df, get_onsets_es, librosa, plt):
                 return onsets
         except Exception as e:
             return None
-
 
     idx = 0
     row = df.iloc[idx]

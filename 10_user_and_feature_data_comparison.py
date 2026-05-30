@@ -14,22 +14,23 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
     import os
-    import seaborn as sns
     from typing import List, Literal
+
+    import marimo as mo
     import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
+    import seaborn as sns
 
     from src.globals import (
+        AUDIO_FOLDER,
         CSV_FOLDER,
         DATASET_FOLDER,
-        TRACKS_PATH,
-        AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
         MODEL_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
     )
 
     return (
@@ -73,31 +74,19 @@ def _(CSV_FOLDER, os, pd):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -133,9 +122,8 @@ def _(pd, surveyAnswers_, surveyQuestions):
             }
         )
 
-
-    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = (
-        surveyAnswers_.apply(getTrackIdsForAnswer, axis=1)
+    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = surveyAnswers_.apply(
+        getTrackIdsForAnswer, axis=1
     )
     surveyAnswers = surveyAnswers_[~surveyAnswers_.skipped].drop(columns="skipped")
     surveyAnswers
@@ -183,7 +171,6 @@ def _(List, mo, pd, surveyAnswers):
             else:
                 return 0.0  # => unvertainty (all are different)
 
-
     def getLocalFeatureAgreement(
         answer,
         feature_df: pd.DataFrame,
@@ -194,7 +181,6 @@ def _(List, mo, pd, surveyAnswers):
         a_1 = feature_df.loc[answer["track_id_1"]][feature_key]
         a_2 = feature_df.loc[answer["track_id_2"]][feature_key]
         return getAgreementScore(x, a_1, a_2, use_distance)
-
 
     def getAllAgreements(
         feature_df: pd.DataFrame,
@@ -222,9 +208,7 @@ def _(List, mo, pd, surveyAnswers):
                 if pd.api.types.is_float_dtype(feature_df[feat]):
                     continue
                 columns[("distance", feat)] = surveyAnswers.apply(
-                    lambda x, f=feat: getLocalFeatureAgreement(
-                        x, feature_df, f, True
-                    ),
+                    lambda x, f=feat: getLocalFeatureAgreement(x, feature_df, f, True),
                     axis=1,
                 )
 
@@ -233,20 +217,11 @@ def _(List, mo, pd, surveyAnswers):
             agree_df.columns = pd.MultiIndex.from_tuples(agree_df.columns)
         return agree_df
 
-
-    def get_mean_values(
-        agreement_df: pd.DataFrame, feature_list=None, top_x: int = None
-    ) -> dict:
-        f_iterator = (
-            feature_list if feature_list is not None else agreement_df.columns
-        )
+    def get_mean_values(agreement_df: pd.DataFrame, feature_list=None, top_x: int = None) -> dict:
+        f_iterator = feature_list if feature_list is not None else agreement_df.columns
         mean_values = {feat: agreement_df[feat].mean() for feat in f_iterator}
         if top_x is not None:
-            mean_values = dict(
-                sorted(
-                    mean_values.items(), key=lambda item: item[1], reverse=True
-                )[:top_x]
-            )
+            mean_values = dict(sorted(mean_values.items(), key=lambda item: item[1], reverse=True)[:top_x])
         return mean_values
 
     return getAllAgreements, get_mean_values
@@ -273,9 +248,7 @@ def _():
 
 @app.cell
 def _(Literal, euclidean, pd, surveyAnswers):
-    def getDistanceAgreementRow(
-        answer, feature_df, distance_algorithm
-    ) -> pd.Series:
+    def getDistanceAgreementRow(answer, feature_df, distance_algorithm) -> pd.Series:
         x = feature_df.loc[answer["track_id_X"]].values
         a_1 = feature_df.loc[answer["track_id_1"]].values
         a_2 = feature_df.loc[answer["track_id_2"]].values
@@ -283,15 +256,12 @@ def _(Literal, euclidean, pd, surveyAnswers):
             dist_a_1 = euclidean(x, a_1)
             dist_a_2 = euclidean(x, a_2)
         else:
-            raise NotImplementedError(
-                f"Distance Measure {distance_algorithm} is not implemented yet!"
-            )
+            raise NotImplementedError(f"Distance Measure {distance_algorithm} is not implemented yet!")
 
         dist = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
         acc_score = 1.0 if dist_a_1 < dist_a_2 else 0.0
 
         return pd.Series({"distance": dist, "accuracy": acc_score})
-
 
     def getGlobalDistanceAgreement(
         feature_df: pd.DataFrame,
@@ -379,20 +349,18 @@ def _(mo):
 
 @app.cell
 def _():
+    import torch
     import torchaudio
     from speechbrain.inference.encoders import MelSpectrogramEncoder
-    from src.utils import get_trimmed_audio
 
-    import torch
+    from src.utils import get_trimmed_audio
 
     return MelSpectrogramEncoder, get_trimmed_audio, torch
 
 
 @app.cell
 def _(MelSpectrogramEncoder):
-    encoder = MelSpectrogramEncoder.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
-    )
+    encoder = MelSpectrogramEncoder.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb-mel-spec")
     SAMPLE_RATE = 16_000
     return SAMPLE_RATE, encoder
 
@@ -409,9 +377,7 @@ def _(SAMPLE_RATE, get_trimmed_audio):
 @app.cell
 def _(encoder, get_embedding, np, pd, track_df):
     embedding_df = pd.DataFrame(
-        np.stack(
-            track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values
-        ),
+        np.stack(track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values),
         columns=[f"emb_{e}" for e in range(192)],
         index=track_df.index,
     )
@@ -421,9 +387,7 @@ def _(encoder, get_embedding, np, pd, track_df):
 
 @app.cell
 def _(embedding_df, getGlobalDistanceAgreement):
-    embedding_gda_df = getGlobalDistanceAgreement(
-        embedding_df, distance_algorithm="euclidean"
-    )
+    embedding_gda_df = getGlobalDistanceAgreement(embedding_df, distance_algorithm="euclidean")
     embedding_gda_df.describe()
     return
 
@@ -443,18 +407,14 @@ def _(MODEL_FOLDER, encoder, os, torch):
         "finetuned_encoder",
         f"spkrec-ecapa-voxceleb-mel-spec_shuffle_32_0.3_40_1e-05.pt",
     )
-    encoder.hparams.embedding_model.load_state_dict(
-        torch.load(finetuned_encoder_path)
-    )
+    encoder.hparams.embedding_model.load_state_dict(torch.load(finetuned_encoder_path))
     return
 
 
 @app.cell
 def _(encoder, get_embedding, np, pd, track_df):
     ft_embedding_df = pd.DataFrame(
-        np.stack(
-            track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values
-        ),
+        np.stack(track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values),
         columns=[f"emb_{e}" for e in range(192)],
         index=track_df.index,
     )
@@ -464,9 +424,7 @@ def _(encoder, get_embedding, np, pd, track_df):
 
 @app.cell
 def _(ft_embedding_df, getGlobalDistanceAgreement):
-    ft_embedding_gda_df = getGlobalDistanceAgreement(
-        ft_embedding_df, distance_algorithm="euclidean"
-    )
+    ft_embedding_gda_df = getGlobalDistanceAgreement(ft_embedding_df, distance_algorithm="euclidean")
     ft_embedding_gda_df.describe()
     return
 
@@ -501,9 +459,7 @@ def _(SAMPLE_RATE, get_trimmed_audio):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    gemaps_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy"
-    )
+    gemaps_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy")
     return (gemaps_feature_path,)
 
 
@@ -547,9 +503,7 @@ def _(mo):
 
 @app.cell
 def _(gemaps_features_df, getAllAgreements):
-    gemaps_agreements = getAllAgreements(
-        gemaps_features_df, gemaps_features_df.columns
-    )
+    gemaps_agreements = getAllAgreements(gemaps_features_df, gemaps_features_df.columns)
     gemaps_agreements
     return (gemaps_agreements,)
 
@@ -575,9 +529,7 @@ def _(mo):
 
 @app.cell
 def _(gemaps_features_df, getGlobalDistanceAgreement):
-    gemaps_gda_df = getGlobalDistanceAgreement(
-        gemaps_features_df, distance_algorithm="euclidean"
-    )
+    gemaps_gda_df = getGlobalDistanceAgreement(gemaps_features_df, distance_algorithm="euclidean")
     gemaps_gda_df.describe()
     return
 
@@ -601,9 +553,7 @@ def _(opensmile):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    compare_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "compare.npy"
-    )
+    compare_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "compare.npy")
     return (compare_feature_path,)
 
 
@@ -647,9 +597,7 @@ def _(mo):
 
 @app.cell
 def _(compare_features_df, getAllAgreements):
-    compare_agreements = getAllAgreements(
-        compare_features_df, compare_features_df.columns
-    )
+    compare_agreements = getAllAgreements(compare_features_df, compare_features_df.columns)
     compare_agreements
     return (compare_agreements,)
 
@@ -675,9 +623,7 @@ def _(mo):
 
 @app.cell
 def _(compare_features_df, getGlobalDistanceAgreement):
-    compare_gda_df = getGlobalDistanceAgreement(
-        compare_features_df, distance_algorithm="euclidean"
-    )
+    compare_gda_df = getGlobalDistanceAgreement(compare_features_df, distance_algorithm="euclidean")
     compare_gda_df.describe()
     return
 

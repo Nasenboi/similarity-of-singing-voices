@@ -14,21 +14,23 @@ def _(mo):
 
 @app.cell
 def _():
-    import marimo as mo
-    import pandas as pd
-    import numpy as np
     import os
+
+    import marimo as mo
+    import numpy as np
+    import pandas as pd
     import seaborn as sns
 
     from src.globals import (
+        AUDIO_FOLDER,
         CSV_FOLDER,
         DATASET_FOLDER,
-        TRACKS_PATH,
-        AUDIO_FOLDER,
-        STEMS_FOLDER,
-        UVR_MODEL_PATH,
         MODEL_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
     )
+
     return CSV_FOLDER, DATASET_FOLDER, MODEL_FOLDER, mo, os, pd
 
 
@@ -59,31 +61,19 @@ def _(CSV_FOLDER, os, pd):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -101,9 +91,7 @@ def _(CSV_FOLDER, os, pd):
 
 @app.cell
 def _(full_dataset, track_df):
-    track_df["artist_id"] = track_df.apply(
-        lambda x: full_dataset.loc[x.name].artist_id, axis=1
-    )
+    track_df["artist_id"] = track_df.apply(lambda x: full_dataset.loc[x.name].artist_id, axis=1)
     return
 
 
@@ -146,7 +134,6 @@ def _(pd, surveyAnswers_, surveyQuestions, track_df):
             }
         )
 
-
     surveyAnswers_[
         [
             "track_id_X",
@@ -178,15 +165,16 @@ def _(mo):
 @app.cell
 def _():
     # additional imports
-    import torchaudio
     import torch
     import torch.nn.functional as F
-    from torch.optim import Adam
-    from torch.utils.data import Dataset, DataLoader
-    from speechbrain.inference.encoders import MelSpectrogramEncoder
+    import torchaudio
     from sklearn.model_selection import train_test_split
+    from speechbrain.inference.encoders import MelSpectrogramEncoder
+    from torch.optim import Adam
+    from torch.utils.data import DataLoader, Dataset
 
     from src.utils import get_trimmed_audio
+
     return (
         Adam,
         DataLoader,
@@ -231,9 +219,7 @@ def _():
 
 @app.cell
 def _(MelSpectrogramEncoder):
-    encoder = MelSpectrogramEncoder.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
-    )
+    encoder = MelSpectrogramEncoder.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb-mel-spec")
     return (encoder,)
 
 
@@ -264,11 +250,10 @@ def _(Dataset, RANDOM_STATE, full_dataset):
 
         def __get_shuffled_track(self, artist_id: str):
             shuffled_track = (
-                full_dataset[full_dataset.artist_id == artist_id]
-                .sample(n=1, random_state=RANDOM_STATE)
-                .iloc[0]
+                full_dataset[full_dataset.artist_id == artist_id].sample(n=1, random_state=RANDOM_STATE).iloc[0]
             )
             return shuffled_track["trimmed_audio"]
+
     return (TripletDataset,)
 
 
@@ -277,12 +262,11 @@ def _(F, torch):
     def collate_triplets(batch):
         def pad_audio(wavs):
             max_len = max(w.shape[-1] for w in wavs)
-            return torch.stack(
-                [F.pad(w, (0, max_len - w.shape[-1])) for w in wavs]
-            )
+            return torch.stack([F.pad(w, (0, max_len - w.shape[-1])) for w in wavs])
 
         anchors, positives, negatives = zip(*batch)
         return pad_audio(anchors), pad_audio(positives), pad_audio(negatives)
+
     return (collate_triplets,)
 
 
@@ -297,9 +281,7 @@ def _(
     surveyAnswers,
     train_test_split,
 ):
-    train_df, test_df = train_test_split(
-        surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE
-    )
+    train_df, test_df = train_test_split(surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE)
 
     train_dataset = TripletDataset(train_df, artist_track_shuffle=True)
     test_dataset = TripletDataset(test_df, artist_track_shuffle=False)
@@ -329,6 +311,7 @@ def _(encoder, torch):
         feats = normalizer(torch.transpose(mel, 1, 2), lens)
         return model(feats)
         # return torch.nn.functional.normalize(emb, p=2, dim=1)
+
     return (encode,)
 
 
@@ -369,17 +352,13 @@ def _(
         for p in params[:-unfreeze_layers]:
             p.requires_grad = False
 
-        optimizer = Adam(
-            filter(lambda p: p.requires_grad, model.parameters()), lr=lr
-        )
+        optimizer = Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=lr)
         triplet_loss_fn = torch.nn.TripletMarginLoss(margin=margin, p=2)
         model.train()
 
         for epoch in mo.status.progress_bar(range(epochs)):
             total_loss = 0.0
-            for anchor_mel, positive_mel, negative_mel in mo.status.progress_bar(
-                train_loader
-            ):
+            for anchor_mel, positive_mel, negative_mel in mo.status.progress_bar(train_loader):
                 optimizer.zero_grad()
 
                 emb_anchor = encode(anchor_mel, model)
@@ -394,9 +373,7 @@ def _(
             model.eval()
             with torch.no_grad():
                 test_loss = sum(
-                    triplet_loss_fn(
-                        encode(a, model), encode(p, model), encode(n, model)
-                    ).item()
+                    triplet_loss_fn(encode(a, model), encode(p, model), encode(n, model)).item()
                     for a, p, n in test_loader
                 ) / len(test_loader)
                 a, p, n = next(iter(train_loader))
@@ -408,6 +385,7 @@ def _(
             model.train()
 
         return encoder
+
     return (fine_tune,)
 
 
@@ -429,9 +407,7 @@ def _(EPOCHS, LEARNING_RATE, MARGIN, MODEL_FOLDER, UNFREEZE_LAYERS, os):
 
 @app.cell
 def _(encoder, finetuned_encoder_path, torch):
-    torch.save(
-        encoder.hparams.embedding_model.state_dict(), finetuned_encoder_path
-    )
+    torch.save(encoder.hparams.embedding_model.state_dict(), finetuned_encoder_path)
     return
 
 
