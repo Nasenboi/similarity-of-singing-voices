@@ -186,12 +186,7 @@ class PhonemeExtractor:
                 phonemes += p
 
         if save_path is not None:
-            try:
-                self.logger.info(f"Saving phoneme data to {save_path}")
-                self.__save_rows(rows, os.path.join(save_path, "phoneme_rows.parquet"))
-                self.__save_phonemes(phonemes, os.path.join(save_path, "phonemes.npy"), allow_pickle)
-            except Exception as e:
-                self.logger.error(f"Error saving files!\n{e}")
+            self.save_data(rows, phonemes, save_path, allow_pickle)
         else:
             self.logger.warning("Phoneme data is not saved!")
         return rows, phonemes
@@ -219,6 +214,24 @@ class PhonemeExtractor:
         except Exception as e:
             self.logger.error(f"Error processing {file_id if  file_id is not None else file_path}:\n{e}")
             return None, None
+
+    def save_data(
+        self, rows: List[PhonemeDataRow], phonemes: List[np.array], save_path: str, allow_pickle: bool = True
+    ):
+        """Save phoneme data to a specified directory path
+
+        Args:
+            rows (List[PhonemeDataRow]): The phoneme metadata
+            phonemes (List[np.array]): The raw phoneme data
+            save_path (str): The path to save the data to
+            allow_pickle (bool, optional): Numpy pickle, needs to be True. Defaults to True.
+        """
+        try:
+            self.logger.info(f"Saving phoneme data to {save_path}")
+            self.__save_rows(rows, os.path.join(save_path, "phoneme_rows.parquet"))
+            self.__save_phonemes(phonemes, os.path.join(save_path, "phonemes.npy"), allow_pickle)
+        except Exception as e:
+            self.logger.error(f"Error saving files!\n{e}")
 
     def __extract_text(self, y_snippets: List[np.array]) -> Tuple[List[str], str]:
         if len(y_snippets) == 0:
