@@ -1,7 +1,9 @@
-import logging
-import os
 import re
 import sys
+
+from ..utils import get_trimmed_audio
+
+# /\ somehow this needs to be called before the PhonemeTimestampAligner?! /\
 
 
 # Create Filtered Stream before class initialization
@@ -9,6 +11,8 @@ class FilteredStream:
     def __init__(self, stream, patterns):
         self.stream = stream
         self.patterns = [re.compile(p) for p in patterns]
+        self.encoding = stream.encoding
+        self.errors = stream.errors
 
     def write(self, msg):
         if not any(p.search(msg) for p in self.patterns):
@@ -26,18 +30,18 @@ patterns = [
 sys.stdout = FilteredStream(sys.stdout, patterns)
 sys.stderr = FilteredStream(sys.stderr, patterns)
 
+import logging
+import os
 from typing import List, Optional, Tuple
 
 import langcodes
-import marimo
+import marimo as mo
 import numpy as np
 import pandas as pd
 import torch
 from bournemouth_aligner import PhonemeTimestampAligner
 from pydantic import BaseModel
 from qwen_asr import Qwen3ASRModel
-
-from ..utils import get_trimmed_audio
 
 
 class PhonemeDataRow(BaseModel):
@@ -51,12 +55,12 @@ class PhonemeDataRow(BaseModel):
     language: Optional[str]
 
 
-def load_data(load_path: str, pickled: bool = False) -> Tuple[pd.DataFrame, np.array]:
+def load_data(load_path: str, pickled: bool = True) -> Tuple[pd.DataFrame, np.array]:
     """Load the the phoneme and row data
 
     Args:
         load_path (str): Folder of the phoneme data
-        pickled (bool, optional): Numpy pickle. Defaults to False.
+        pickled (bool, optional): Numpy pickle. Defaults to True.
 
     Returns:
         Tuple[pd.DataFrame, np.array]: The phoneme data
@@ -76,15 +80,15 @@ def load_rows(path: str) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Phoneme DataFrame
     """
-    return pd.read_parquet(path, index="phoneme_id")
+    return pd.read_parquet(path)
 
 
-def load_phonemes(path: str, pickled: bool = False) -> np.array:
+def load_phonemes(path: str, pickled: bool = True) -> np.array:
     """Loads the phoneme numpy arrays
 
     Args:
         path (str): Path to the Numpy array
-        pickled (bool, optional): Numpy pickle. Defaults to False.
+        pickled (bool, optional): Numpy pickle. Defaults to True.
 
     Returns:
         np.array: The Phoneme numpy array
@@ -156,7 +160,7 @@ class PhonemeExtractor:
         )
 
     def process_batch(
-        self, files, ids: List[str] = None, save_path: str = None, allow_pickle: bool = False
+        self, files, ids: List[str] = None, save_path: str = None, allow_pickle: bool = True
     ) -> Tuple[List[PhonemeDataRow], List[np.array]]:
         """Processes a batch of audio files
 
@@ -164,7 +168,7 @@ class PhonemeExtractor:
             files (_type_): A list of audio file paths
             ids (List[str], optional): An optional list of file ids, should be the same length as files. Defaults to None.
             save_path (str, optional): An optional path to save the data to. Defaults to None.
-            allow_pickle (bool, optional): Allow Numpy pickle algorithm. Defaults to False.
+            allow_pickle (bool, optional): Allow Numpy pickle algorithm. Defaults to True.
 
         Returns:
             Tuple[List[PhonemeDataRow], List[np.array]]: The phoneme data
@@ -172,7 +176,7 @@ class PhonemeExtractor:
         rows = []
         phonemes = []
         self.logger.info("Starting batch processing.")
-        for idx, path in marimo.status.progress_bar(
+        for idx, path in mo.status.progress_bar(
             enumerate(files), total=len(files), title="Extracting Phonemes for all Files..."
         ):
             file_id = ids[idx] if ids is not None and len(ids) > idx else None
@@ -185,7 +189,7 @@ class PhonemeExtractor:
             try:
                 self.logger.info(f"Saving phoneme data to {save_path}")
                 self.__save_rows(rows, os.path.join(save_path, "phoneme_rows.parquet"))
-                self.__save_phonemes(phonemes, os.path.join(save_path, "phonemes.npy"))
+                self.__save_phonemes(phonemes, os.path.join(save_path, "phonemes.npy"), allow_pickle)
             except Exception as e:
                 self.logger.error(f"Error saving files!\n{e}")
         else:
@@ -286,12 +290,12 @@ class PhonemeExtractor:
         df.index.name = "phoneme_id"
         df.to_parquet(path)
 
-    def __save_phonemes(self, phonemes: List[np.array], path: str, allow_pickle: bool = False):
+    def __save_phonemes(self, phonemes: List[np.array], path: str, allow_pickle: bool = True):
         np.save(path, np.array(phonemes, dtype=object), allow_pickle=allow_pickle)
 
     @staticmethod
     def __to_language_code(lang: str) -> str:
-        if lang is None or lang is "":
+        if lang is None or lang == "":
             return "en"
         try:
             code = langcodes.find(lang)
