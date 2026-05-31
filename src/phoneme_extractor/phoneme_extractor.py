@@ -1,4 +1,31 @@
+import logging
 import os
+import re
+import sys
+
+
+# Create Filtered Stream before class initialization
+class FilteredStream:
+    def __init__(self, stream, patterns):
+        self.stream = stream
+        self.patterns = [re.compile(p) for p in patterns]
+
+    def write(self, msg):
+        if not any(p.search(msg) for p in self.patterns):
+            self.stream.write(msg)
+
+    def flush(self):
+        self.stream.flush()
+
+
+patterns = [
+    r"Setting `pad_token_id`",
+    r"words count mismatch",
+]
+
+sys.stdout = FilteredStream(sys.stdout, patterns)
+sys.stderr = FilteredStream(sys.stderr, patterns)
+
 from typing import List, Optional, Tuple
 
 import langcodes
@@ -15,12 +42,13 @@ from ..utils import get_trimmed_audio
 
 class PhonemeDataRow(BaseModel):
     phoneme: str
-    file_id: Optional[str]
-    snippet_id: Optional[int]
+    file_id: Optional[str | int]
+    snippet_id: Optional[str | int]
     start_ms: float
     end_ms: float
     duration_ms: float
     confidence: float
+    language: Optional[str]
 
 
 def load_data(load_path: str, pickled: bool = False) -> Tuple[pd.DataFrame, np.array]:
@@ -83,6 +111,7 @@ class PhonemeExtractor:
         min_sippet_duration: float = 2.0,
         min_phoneme_duration_ms: float = 40,
         min_phoneme_confidence: float = 0.0,
+        log_level: int = logging.WARNING,
     ):
         """PhonemeExtractor Constructor
 
@@ -97,8 +126,11 @@ class PhonemeExtractor:
             min_sippet_duration (float, optional): Minimum duration in seconds for audio snippets. Defaults to 2.0.
             min_phoneme_duration_ms (float, optional): Minimum duration in milliseconds for phonemes. Defaults to 40. !! Not implemented yet !!
             min_phoneme_confidence (float, optional): Minimum model confidence level for phoneme. Defaults to 0.0 (all). !! Not implemented yet !!
+            log_level (int, optional): Log level for this class. Defaults to logging.WARNING (30).
         """
         # Universal values
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(log_level)
         self.device = device
         if device is None:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -108,15 +140,17 @@ class PhonemeExtractor:
         self.min_phoneme_confidence = min_phoneme_confidence
 
         # Automatic Speech Recognition
+        self.logger.debug("Init ASR Model")
         self.asr_model = Qwen3ASRModel.from_pretrained(
             asr_model_path,
             dtype=torch.bfloat16,
-            device_map=str(self.decive),
+            device_map=str(self.device),
             max_inference_batch_size=32,
             max_new_tokens=256,
         )
 
         # Forced Alignment
+        self.logger.debug("Init Forced Alignment Model")
         self.forced_aligner = PhonemeTimestampAligner(
             cupe_ckpt_path=fa_model_path, device=self.device, bad_confidence_threshold=1
         )
@@ -137,15 +171,25 @@ class PhonemeExtractor:
         """
         rows = []
         phonemes = []
-        for idx, path in marimo.status.progress_bar(enumerate(files), title="Extracting Phonemes for all Files..."):
+        self.logger.info("Starting batch processing.")
+        for idx, path in marimo.status.progress_bar(
+            enumerate(files), total=len(files), title="Extracting Phonemes for all Files..."
+        ):
             file_id = ids[idx] if ids is not None and len(ids) > idx else None
             r, p = self.process_single_file(path, file_id)
-            rows += r
-            phonemes += p
+            if r is not None and p is not None:
+                rows += r
+                phonemes += p
 
         if save_path is not None:
-            self.__save_rows(rows, os.path.join(save_path, "phoneme_rows.parquet"))
-            self.__save_phonemes(phonemes, os.path.join(save_path, "phonemes.npy"))
+            try:
+                self.logger.info(f"Saving phoneme data to {save_path}")
+                self.__save_rows(rows, os.path.join(save_path, "phoneme_rows.parquet"))
+                self.__save_phonemes(phonemes, os.path.join(save_path, "phonemes.npy"))
+            except Exception as e:
+                self.logger.error(f"Error saving files!\n{e}")
+        else:
+            self.logger.warning("Phoneme data is not saved!")
         return rows, phonemes
 
     def process_single_file(self, file_path: str, file_id: str = None) -> Tuple[List[PhonemeDataRow], List[np.array]]:
@@ -159,15 +203,18 @@ class PhonemeExtractor:
             Tuple[List[PhonemeDataRow], List[np.array]]: The phoneme data
         """
         try:
+            self.logger.debug(f"Start processing {file_id if  file_id is not None else file_path}")
             y_snippets = get_trimmed_audio(
                 file_path, sr=self.sample_rate, to_tensor=False, concat=False, min_duration=self.min_snippet_duration
             )
             text_snippets, lang = self.__extract_text(y_snippets=y_snippets)
             rows, phonemes = self.__get_phonemes(y_snippets, text_snippets, file_id, lang)
 
+            torch.cuda.empty_cache()
             return rows, phonemes
         except Exception as e:
-            print(f"Error processing f{file_id if  file_id is not None else file_path}:\n{e}")
+            self.logger.error(f"Error processing {file_id if  file_id is not None else file_path}:\n{e}")
+            return None, None
 
     def __extract_text(self, y_snippets: List[np.array]) -> Tuple[List[str], str]:
         if len(y_snippets) == 0:
@@ -193,19 +240,19 @@ class PhonemeExtractor:
         phonemes = []
         for idx, res in enumerate(fa_results):
             phoneme_ts = [ts for seg in res["segments"] for ts in seg["phoneme_ts"]]
-            r, p = self.__process_aligner_result(y_snippets[idx], phoneme_ts, file_id, idx)
+            r, p = self.__process_aligner_result(y_snippets[idx], phoneme_ts, file_id, idx, lang)
             rows += r
             phonemes += p
 
         return rows, phonemes
 
     def __set_aligner_language(self, lang: str = "en"):
-        if lang != self.forced_aligner.lang:
+        if lang != self.forced_aligner.lang or self.forced_aligner.lang is None:
             self.forced_aligner.phonemizer.set_backend(language=lang)
             self.forced_aligner.lang = lang
 
     def __process_aligner_result(
-        self, y: np.array, phoneme_ts: List[dict], file_id: str, snippet_id: int
+        self, y: np.array, phoneme_ts: List[dict], file_id: str, snippet_id: int, language: str
     ) -> Tuple[List[PhonemeDataRow], List[np.array]]:
         rows = []
         phonemes = []
@@ -214,10 +261,12 @@ class PhonemeExtractor:
                 PhonemeDataRow(
                     file_id=file_id,
                     snippet_id=snippet_id,
+                    phoneme=phoneme["phoneme_label"],
                     start_ms=phoneme["start_ms"],
                     end_ms=phoneme["end_ms"],
                     duration_ms=phoneme["end_ms"] - phoneme["start_ms"],
                     confidence=phoneme["confidence"],
+                    language=language,
                 )
             )
             phonemes.append(self.__get_phoneme(y, phoneme["start_ms"], phoneme["end_ms"]))
@@ -229,7 +278,7 @@ class PhonemeExtractor:
         return y[start_idx:end_idx]
 
     def __ms_to_idx(self, ms: float, arr_len: int) -> int:
-        idx = int(ms * self.sample_rate)
+        idx = int(ms * 0.001 * self.sample_rate)
         return max(min(idx, arr_len), 0)
 
     def __save_rows(self, rows: List[PhonemeDataRow], path: str):
@@ -242,5 +291,10 @@ class PhonemeExtractor:
 
     @staticmethod
     def __to_language_code(lang: str) -> str:
-        code = langcodes.find(lang)
-        return code.language
+        if lang is None or lang is "":
+            return "en"
+        try:
+            code = langcodes.find(lang)
+            return code.language
+        except:
+            return "en"
