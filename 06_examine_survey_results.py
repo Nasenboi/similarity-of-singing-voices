@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.23.8"
 app = marimo.App(width="medium")
 
 
@@ -28,7 +28,14 @@ def _():
     # Defferrard, M., Benzi, K., Vandergheynst, P., & Bresson, X. (2017). FMA: A Dataset for Music Analysis. In 18th International Society for Music Information Retrieval Conference (ISMIR).
     # available under "https://github.com/mdeff/fma"
     from src.FMA.utils import get_audio_path, load
-    from src.globals import AUDIO_FOLDER, CSV_FOLDER, DATASET_FOLDER, STEMS_FOLDER, TRACKS_PATH, UVR_MODEL_PATH
+    from src.globals import (
+        AUDIO_FOLDER,
+        CSV_FOLDER,
+        DATASET_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
+    )
 
     return DATASET_FOLDER, alt, mo, os, pd
 
@@ -58,9 +65,15 @@ def _(mo):
 
 @app.cell
 def _(SURVEY_FOLDER, os, parse_js_date, pd):
-    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
-    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
-    surveyAnswers = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
+    participants = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
+    )
+    surveyQuestions = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
+    )
+    surveyAnswers = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
+    )
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
@@ -70,8 +83,12 @@ def _(SURVEY_FOLDER, os, parse_js_date, pd):
 
 @app.cell
 def _(participants):
-    participants["completionTime"] = participants["editDate"] - participants["createDate"]
-    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
+    participants["completionTime"] = (
+        participants["editDate"] - participants["createDate"]
+    )
+    participants["completionMinutes"] = (
+        participants["completionTime"].dt.total_seconds() / 60
+    )
     participants[participants.surveyCompleted]
     return
 
@@ -86,11 +103,27 @@ def _(mo):
 
 @app.cell
 def _(participants, surveyAnswers, surveyQuestions):
-    ab_ratio_a = 100 * len(surveyAnswers[surveyAnswers.answer_1 == "A"]) / len(surveyAnswers)
-    ab_ratio_b = 100 * len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(surveyAnswers)
+    ab_ratio_a = (
+        100
+        * len(surveyAnswers[surveyAnswers.answer_1 == "A"])
+        / len(surveyAnswers)
+    )
+    ab_ratio_b = (
+        100
+        * len(surveyAnswers[surveyAnswers.answer_1 == "B"])
+        / len(surveyAnswers)
+    )
 
-    instruments_on_yes = 100 * len(surveyAnswers[surveyAnswers.backgroundMusic]) / len(surveyAnswers)
-    instruments_on_no = 100 * len(surveyAnswers[~surveyAnswers.backgroundMusic]) / len(surveyAnswers)
+    instruments_on_yes = (
+        100
+        * len(surveyAnswers[surveyAnswers.backgroundMusic])
+        / len(surveyAnswers)
+    )
+    instruments_on_no = (
+        100
+        * len(surveyAnswers[~surveyAnswers.backgroundMusic])
+        / len(surveyAnswers)
+    )
 
     print(f"""
     Total number of participants: {len(participants)}
@@ -123,13 +156,18 @@ def _(participants, surveyAnswers, surveyQuestions):
 @app.cell
 def _(alt, participants):
     _chart = (
-        alt.Chart(participants[participants.surveyCompleted][["completionMinutes"]])  # <-- replace with data
+        alt.Chart(
+            participants[
+                (participants.surveyCompleted)
+                & (participants.completionMinutes <= 100)
+            ][["completionMinutes"]]
+        )  # <-- replace with data
         .mark_bar()
         .encode(
             x=alt.X(
                 "completionMinutes",
                 type="quantitative",
-                bin=alt.Bin(step=5),
+                bin=alt.Bin(step=1),
                 title="completionMinutes",
             ),
             y=alt.Y("count()", type="quantitative", title="Number of records"),
@@ -177,18 +215,26 @@ def _(surveyAnswers):
         n = len(answers)
         a = None if n == 0 else (len(answers[answers.answer_1 == "A"]) / n)
         b = None if n == 0 else (len(answers[answers.answer_1 == "B"]) / n)
-        instruments_on = None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
+        instruments_on = (
+            None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
+        )
         agreement = None if n == 0 else max(a, b)
-        return {"num_answers": n, "A_perc": a, "B_perc": b, "agreement": agreement, "instruments_on": instruments_on}
+        return {
+            "num_answers": n,
+            "A_perc": a,
+            "B_perc": b,
+            "agreement": agreement,
+            "instruments_on": instruments_on,
+        }
 
     return (get_perc_values,)
 
 
 @app.cell
 def _(get_perc_values, pd, surveyQuestions):
-    surveyQuestions[["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]] = (
-        surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
-    )
+    surveyQuestions[
+        ["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]
+    ] = surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
     surveyQuestions
     return
 
@@ -226,7 +272,9 @@ def _(
     pe,
     surveyQuestions,
 ):
-    po_i_differ = surveyQuestions[instrument_mask1 & instrument_mask2 & multi_answer_mask].agreement.mean()
+    po_i_differ = surveyQuestions[
+        instrument_mask1 & instrument_mask2 & multi_answer_mask
+    ].agreement.mean()
 
     kappa_i_differ = (po_i_differ - pe) / (1 - pe)
     print(f"""
@@ -246,7 +294,9 @@ def _(
     pe,
     surveyQuestions,
 ):
-    po_i_same = surveyQuestions[~(instrument_mask1 & instrument_mask2) & multi_answer_mask].agreement.mean()
+    po_i_same = surveyQuestions[
+        ~(instrument_mask1 & instrument_mask2) & multi_answer_mask
+    ].agreement.mean()
 
     kappa_i_same = (po_i_same - pe) / (1 - pe)
     print(f"""

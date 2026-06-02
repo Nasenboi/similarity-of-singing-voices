@@ -202,12 +202,13 @@ def _(mo, pd, phoneme_df, surveyAnswers, wasserstein_distance_nd):
         """
         emd_1 = wasserstein_distance_nd(x, a_1)
         emd_2 = wasserstein_distance_nd(x, a_2)
-        return (emd_2 - emd_1) / (emd_1 + emd_2)
-
+        dist = (emd_2 - emd_1) / (emd_1 + emd_2)
+        agg_score = 1.0 if emd_1 < emd_2 else (-1.0 if emd_1 > emd_2 else 0.0)
+        acc_score = 1.0 if emd_1 < emd_2 else 0.0
+        return {"distance": dist, "agreement": agg_score, "accuracy": acc_score}
 
     def get_phoneme_features_per_track(track_id, feature_df):
         return feature_df[phoneme_df.track_id == track_id]
-
 
     def get_local_feature_emd_distance(
         answer,
@@ -218,7 +219,6 @@ def _(mo, pd, phoneme_df, surveyAnswers, wasserstein_distance_nd):
         a_2 = get_phoneme_features_per_track(answer["track_id_2"], feature_df)
         return get_emd_difference(x, a_1, a_2)
 
-
     def run_emd_distance_algorithm(feature_df):
         rows = mo.status.progress_bar(
             surveyAnswers.iterrows(),
@@ -226,12 +226,14 @@ def _(mo, pd, phoneme_df, surveyAnswers, wasserstein_distance_nd):
             total=len(surveyAnswers),
             remove_on_exit=True,
         )
-        return pd.Series(
+        result_df = pd.DataFrame(
             {
                 idx: get_local_feature_emd_distance(row, feature_df)
                 for idx, row in rows
             }
-        )
+        ).T
+        result_df.index.name = "survey_idx"
+        return result_df
 
     return (run_emd_distance_algorithm,)
 
@@ -323,7 +325,7 @@ def _(mfcc_df, run_emd_distance_algorithm):
 
 @app.cell
 def _(mfcc_emd_differences):
-    mfcc_emd_differences.mean()
+    mfcc_emd_differences.describe()
     return
 
 
@@ -398,7 +400,7 @@ def _(mel_df, run_emd_distance_algorithm):
 
 @app.cell
 def _(mel_emd_differences):
-    mel_emd_differences.mean()
+    mel_emd_differences.describe()
     return
 
 

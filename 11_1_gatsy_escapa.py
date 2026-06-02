@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.23.8"
 app = marimo.App(width="medium")
 
 
@@ -413,6 +413,30 @@ def _(plt, trainer):
 @app.cell
 def _(plt, trainer):
     plt.plot(trainer.checkpoint["pred_accuracy"])
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Load Best Model
+    """)
+    return
+
+
+@app.cell
+def _(MODEL_FOLDER, np, os, torch):
+    trained_model_path = os.path.join(MODEL_FOLDER, "GATSY", "ecapa")
+    models = os.listdir(trained_model_path)
+    best_model = None
+    best_acc = 0.0
+    for m in models:
+        curr_path = os.path.join(trained_model_path, m)
+        curr_model_checkpoint = torch.load(curr_path, weights_only=False)
+        if best_acc < np.array(curr_model_checkpoint["pred_accuracy"]).max():
+            best_model = curr_model_checkpoint
+            best_acc = np.array(curr_model_checkpoint["pred_accuracy"]).max()
+    best_model
     return
 
 

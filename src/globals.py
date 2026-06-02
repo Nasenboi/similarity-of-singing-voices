@@ -4,7 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).parent.parent  # src/ directory
-load_dotenv(BASE_DIR / ".env") 
+load_dotenv(BASE_DIR / ".env")
 
 # The audio dataset folder
 DATASET_FOLDER = os.getenv("DATASET_FOLDER")
@@ -23,3 +23,5 @@ AUDIO_FOLDER = os.path.join(DATASET_FOLDER, "fma_large")
 MODEL_FOLDER = os.getenv("MODEL_FOLDER")
 UVR_MODEL_PATH = os.path.join(MODEL_FOLDER, "UVR")
 STEMS_FOLDER = os.path.join(DATASET_FOLDER, "fma_large_stems")
+
+PLOT_FOLDER = os.getenv("PLOT_FOLDER")
