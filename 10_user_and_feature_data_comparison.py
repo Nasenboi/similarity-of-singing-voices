@@ -34,6 +34,7 @@ def _():
         UVR_MODEL_PATH,
         PLOT_FOLDER,
     )
+    from src.plotting import plot_scores
 
     return (
         CSV_FOLDER,
@@ -46,8 +47,14 @@ def _():
         np,
         os,
         pd,
-        plt,
+        plot_scores,
     )
+
+
+@app.cell
+def _(PLOT_FOLDER, os):
+    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_1")
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell
@@ -75,7 +82,7 @@ def _(CSV_FOLDER, os, pd):
 
 @app.cell
 def _(DATASET_FOLDER, os, pd):
-    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
+    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
 
 
     def parse_js_date(series):
@@ -368,44 +375,6 @@ def _(
 
 
 @app.cell
-def _(PLOT_FOLDER, RANDOM_CHANCE, os, plt):
-    def plot_scores(
-        x,
-        y,
-        title: str = "Accuracy Scores",
-        xlabel: str = "Accuracy (%)",
-        ylabel: str = "Features",
-        save_path: str = None,
-        hline: bool = False,
-    ):
-        x, y = list(x), list(y)
-        plt.barh(y=y, width=x)
-        for i, v in enumerate(x):
-            plt.text(0.01, i, f"{v:.3f}", va="center", ha="left")
-        if hline:
-            plt.axvline(
-                x=RANDOM_CHANCE,
-                linestyle=":",
-                color="red",
-                alpha=1.0,
-                label=f"Random chance = {RANDOM_CHANCE:.3f}",
-            )
-            plt.legend()
-        plt.title(title)
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
-
-        if save_path is not None:
-            plt.savefig(save_path, bbox_inches="tight", dpi=300)
-
-        plt.show()
-
-
-    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_1")
-    return PLOT_SAVE_DIR, plot_scores
-
-
-@app.cell
 def _(mo):
     mo.md(r"""
     # Single High Level Feature Agreement Scores
@@ -455,13 +424,20 @@ def _(get_all_scores, hl_features, scale_df, track_df):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, get_mean_values, hl_agreements, os, plot_scores):
+def _(
+    PLOT_SAVE_DIR,
+    RANDOM_CHANCE,
+    get_mean_values,
+    hl_agreements,
+    os,
+    plot_scores,
+):
     plot_scores(
         x=get_mean_values(hl_agreements["accuracy"]).values(),
         y=hl_agreements["accuracy"].columns,
         title="High Level Feature Accuracy",
         xlabel="Mean Accuracy (%)",
-        hline=True,
+        random_chance=RANDOM_CHANCE,
         save_path=os.path.join(PLOT_SAVE_DIR, "hl_feature_accuracy.png"),
     )
     return
@@ -555,12 +531,12 @@ def _(embedding_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, embedding_gda_df, os, plot_scores):
+def _(PLOT_SAVE_DIR, RANDOM_CHANCE, embedding_gda_df, os, plot_scores):
     plot_scores(
         x=embedding_gda_df["accuracy"].mean(),
         y=embedding_gda_df["accuracy"].columns,
         title="Embedding Accuracy",
-        hline=True,
+        random_chance=RANDOM_CHANCE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "emb_gda_accuracy.png"),
@@ -611,12 +587,12 @@ def _(ft_embedding_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, ft_embedding_gda_df, os, plot_scores):
+def _(PLOT_SAVE_DIR, RANDOM_CHANCE, ft_embedding_gda_df, os, plot_scores):
     plot_scores(
         x=ft_embedding_gda_df["accuracy"].mean(),
         y=ft_embedding_gda_df["accuracy"].columns,
         title="Fine Tuned Embedding Accuracy",
-        hline=True,
+        random_chance=RANDOM_CHANCE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "ft_emb_gda_accuracy.png"),
@@ -709,7 +685,14 @@ def _(gemaps_features_df, get_all_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, gemaps_agreements, get_mean_values, os, plot_scores):
+def _(
+    PLOT_SAVE_DIR,
+    RANDOM_CHANCE,
+    gemaps_agreements,
+    get_mean_values,
+    os,
+    plot_scores,
+):
     TOP_X = 15
     top_gemaps_score_values = get_mean_values(
         gemaps_agreements["accuracy"], top_x=TOP_X
@@ -719,7 +702,7 @@ def _(PLOT_SAVE_DIR, gemaps_agreements, get_mean_values, os, plot_scores):
         x=top_gemaps_score_values.values(),
         y=top_gemaps_score_values.keys(),
         title=f"GeMAPS Single Feature Accuracy (Top {TOP_X})",
-        hline=True,
+        random_chance=RANDOM_CHANCE,
         xlabel="Mean Accuracy (%)",
         save_path=os.path.join(PLOT_SAVE_DIR, "gemaps_single_accuracy.png"),
     )
@@ -742,12 +725,12 @@ def _(gemaps_features_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, gemaps_gda_df, os, plot_scores):
+def _(PLOT_SAVE_DIR, RANDOM_CHANCE, gemaps_gda_df, os, plot_scores):
     plot_scores(
         x=gemaps_gda_df["accuracy"].mean(),
         y=gemaps_gda_df["accuracy"].columns,
         title="All GeMAPS Features Accuracy",
-        hline=True,
+        random_chance=RANDOM_CHANCE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "gemaps_all_accuracy.png"),
@@ -831,7 +814,7 @@ def _():
         x=top_compare_score_values.values(),
         y=top_compare_score_values.keys(),
         title=f"ComParE Single Feature Accuracy (Top {TOP_X})",
-        hline=True,
+        random_chance=RANDOM_CHANCE,
         xlabel="Mean Accuracy (%)",
         save_path=os.path.join(PLOT_SAVE_DIR, "compare_single_accuracy.png"),
     )
@@ -855,12 +838,12 @@ def _(compare_features_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, compare_gda_df, os, plot_scores):
+def _(PLOT_SAVE_DIR, RANDOM_CHANCE, compare_gda_df, os, plot_scores):
     plot_scores(
         x=compare_gda_df["accuracy"].mean(),
         y=compare_gda_df["accuracy"].columns,
         title="All ComParE Features Accuracy",
-        hline=True,
+        random_chance=RANDOM_CHANCE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "compare_all_accuracy.png"),

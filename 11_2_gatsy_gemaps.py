@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.23.8"
 app = marimo.App(width="medium")
 
 
@@ -31,19 +31,28 @@ def _():
         STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
+        PLOT_FOLDER,
     )
+    from src.plotting import plot_model_train_results
 
     return (
         CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        PLOT_FOLDER,
         TripletDataset,
         mo,
         np,
         os,
         pd,
-        plt,
+        plot_model_train_results,
     )
+
+
+@app.cell
+def _(PLOT_FOLDER, os):
+    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_1")
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell
@@ -81,21 +90,33 @@ def _(CSV_FOLDER, os, pd):
 
 @app.cell
 def _(DATASET_FOLDER, os, pd):
-    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
+    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
+
 
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
-    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
-    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
+
+    participants = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
+    )
+    surveyQuestions = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
+    )
+    surveyAnswers_ = pd.read_csv(
+        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
+    )
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = participants["editDate"] - participants["createDate"]
-    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
+    participants["completionTime"] = (
+        participants["editDate"] - participants["createDate"]
+    )
+    participants["completionMinutes"] = (
+        participants["completionTime"].dt.total_seconds() / 60
+    )
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -103,7 +124,9 @@ def _(DATASET_FOLDER, os, pd):
 
 @app.cell
 def _(full_dataset, track_df):
-    track_df["artist_id"] = track_df.apply(lambda x: full_dataset.loc[x.name].artist_id, axis=1)
+    track_df["artist_id"] = track_df.apply(
+        lambda x: full_dataset.loc[x.name].artist_id, axis=1
+    )
     track_df
     return
 
@@ -140,6 +163,7 @@ def _(pd, surveyAnswers_, surveyQuestions, track_df):
                 "skipped": question["skip"],
             }
         )
+
 
     surveyAnswers_[
         [
@@ -235,7 +259,9 @@ def _(DATASET_FOLDER, np, os, track_df):
     x = np.stack(track_df.song_path.apply(get_feature_set).values)
     """
 
-    gemaps_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy")
+    gemaps_feature_path = os.path.join(
+        DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy"
+    )
     x = np.load(gemaps_feature_path)
     track_df["edge_id"] = range(len(track_df))
     x
@@ -258,10 +284,16 @@ def _(
     track_df,
     train_test_split,
 ):
-    train_df, test_df = train_test_split(surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE)
+    train_df, test_df = train_test_split(
+        surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE
+    )
 
-    train_dataset = TripletDataset(triplet_df=train_df, node_df=track_df, node_id_key="edge_id")
-    test_dataset = TripletDataset(triplet_df=test_df, node_df=track_df, node_id_key="edge_id")
+    train_dataset = TripletDataset(
+        triplet_df=train_df, node_df=track_df, node_id_key="edge_id"
+    )
+    test_dataset = TripletDataset(
+        triplet_df=test_df, node_df=track_df, node_id_key="edge_id"
+    )
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
@@ -307,7 +339,9 @@ def _(GATSY):
 
 @app.cell
 def _(MODEL_FOLDER, os, torch):
-    pt_model_path = os.path.join(MODEL_FOLDER, "GATSY", "pretrained", "GAT_7_3_1_0.001_0.0_triplet_False.pt")
+    pt_model_path = os.path.join(
+        MODEL_FOLDER, "GATSY", "pretrained", "GAT_7_3_1_0.001_0.0_triplet_False.pt"
+    )
 
     pt_checkpoint = torch.load(pt_model_path, weights_only=False)
     state_dict = pt_checkpoint.state_dict()
@@ -373,17 +407,7 @@ def _(mo):
 
 
 @app.cell
-def _(
-    DEVICE,
-    MODEL_FOLDER,
-    Trainer,
-    model,
-    os,
-    plt,
-    test_loader,
-    train_loader,
-    x,
-):
+def _(DEVICE, MODEL_FOLDER, Trainer, model, os, test_loader, train_loader, x):
     trainer_params = {
         "model": model,
         "train_loader": train_loader,
@@ -400,26 +424,70 @@ def _(
     }
     trainer = Trainer(**trainer_params)
     trainer.train()
-    loss_reduction = -1 * (trainer.best_test_loss - trainer.checkpoint["loss_test"][0])
+    loss_reduction = -1 * (
+        trainer.best_test_loss - trainer.checkpoint["loss_test"][0]
+    )
     loss_recuction_perc = 100 * loss_reduction / trainer.checkpoint["loss_test"][0]
 
     print(f"Loss reduction {loss_reduction} ({loss_recuction_perc:.2f}%)")
-    plt.plot(trainer.checkpoint["loss_test"], label="Test Loss")
-    plt.plot(trainer.checkpoint["loss_train"], label="Train Loss", color="orange")
-    plt.legend()
-    plt.show()
     return (trainer,)
 
 
 @app.cell
-def _(plt, trainer):
-    plt.plot(trainer.checkpoint["accuracy_score"])
+def _(PLOT_SAVE_DIR, os, plot_model_train_results, trainer):
+    plot_model_train_results(
+        test_loss=trainer.checkpoint["loss_test"],
+        train_loss=trainer.checkpoint["loss_train"],
+        train_accuracy=trainer.checkpoint["accuracy_score"],
+        test_accuracy=trainer.checkpoint["pred_accuracy"],
+        model_name=trainer.model_name(".pt", ""),
+        save_path=os.path.join(PLOT_SAVE_DIR, f"{trainer.model_name}_train.png")
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Load Best Model
+    """)
     return
 
 
 @app.cell
-def _(plt, trainer):
-    plt.plot(trainer.checkpoint["pred_accuracy"])
+def _(MODEL_FOLDER, np, os, torch):
+    trained_model_path = os.path.join(MODEL_FOLDER, "GATSY", "gemaps_finetune")
+    models = os.listdir(trained_model_path)
+    best_model = None
+    best_mode_name = None
+    best_acc = 0.0
+    for m in models:
+        curr_path = os.path.join(trained_model_path, m)
+        curr_model_checkpoint = torch.load(curr_path, weights_only=False)
+        if best_acc < np.array(curr_model_checkpoint["pred_accuracy"]).max():
+            best_model = curr_model_checkpoint
+            best_model_name = m
+            best_acc = np.array(curr_model_checkpoint["pred_accuracy"]).max()
+    print(f"Best model: {best_model_name}")
+    return best_model, best_model_name
+
+
+@app.cell
+def _(
+    PLOT_SAVE_DIR,
+    best_model,
+    best_model_name,
+    os,
+    plot_model_train_results,
+):
+    plot_model_train_results(
+        test_loss=best_model["loss_test"],
+        train_loss=best_model["loss_train"],
+        train_accuracy=best_model["accuracy_score"],
+        test_accuracy=best_model["pred_accuracy"],
+        model_name=best_model_name.replace(".pt", ""),
+        save_path=os.path.join(PLOT_SAVE_DIR, "best_gatsy_gemaps_model_train.png")
+    )
     return
 
 
