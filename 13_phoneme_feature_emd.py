@@ -32,22 +32,32 @@ def _():
         STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
+    PLOT_FOLDER
     )
     from src.phoneme_extractor.phoneme_extractor import (
         load_data as load_phoneme_data,
     )
+    from src.plotting import plot_scores
 
     return (
         CSV_FOLDER,
         DATASET_FOLDER,
+        PLOT_FOLDER,
         librosa,
         load_phoneme_data,
         mo,
         np,
         os,
         pd,
+        plot_scores,
         torch,
     )
+
+
+@app.cell
+def _(PLOT_FOLDER, os):
+    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_1")
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell(hide_code=True)
@@ -116,7 +126,7 @@ def _(CSV_FOLDER, os, pd, phoneme_df):
 
 @app.cell
 def _(DATASET_FOLDER, os, pd):
-    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
+    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
 
 
     def parse_js_date(series):
@@ -319,14 +329,8 @@ def _(
 @app.cell
 def _(mfcc_df, run_emd_distance_algorithm):
     mfcc_emd_differences = run_emd_distance_algorithm(mfcc_df)
-    mfcc_emd_differences
-    return (mfcc_emd_differences,)
-
-
-@app.cell
-def _(mfcc_emd_differences):
     mfcc_emd_differences.describe()
-    return
+    return (mfcc_emd_differences,)
 
 
 @app.cell(hide_code=True)
@@ -394,13 +398,44 @@ def _(
 @app.cell
 def _(mel_df, run_emd_distance_algorithm):
     mel_emd_differences = run_emd_distance_algorithm(mel_df)
-    mel_emd_differences
+    mel_emd_differences.describe()
     return (mel_emd_differences,)
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Plotting
+    """)
+    return
+
+
 @app.cell
-def _(mel_emd_differences):
-    mel_emd_differences.describe()
+def _(surveyAnswers):
+    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(
+        surveyAnswers
+    )
+    RANDOM_CHANCE
+    return (RANDOM_CHANCE,)
+
+
+@app.cell
+def _(
+    PLOT_SAVE_DIR,
+    RANDOM_CHANCE,
+    mel_emd_differences,
+    mfcc_emd_differences,
+    os,
+    plot_scores,
+):
+    plot_scores(
+        x=[mel_emd_differences["accuracy"].mean(), mfcc_emd_differences["accuracy"].mean()],
+        y=["Mel", "MFCC"],
+        title="EMD Feature Accuracy",
+        xlabel="Mean Accuracy (%)",
+        random_chance=RANDOM_CHANCE,
+        save_path=os.path.join(PLOT_SAVE_DIR, "emd_feature_accuracy.png"),
+    )
     return
 
 
