@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.23.9"
 app = marimo.App(width="medium")
 
 
@@ -15,17 +15,35 @@ def _(mo):
 @app.cell
 def _():
     # Initial Imports
+    import marimo as mo
+    from umap import UMAP
     import os
 
-    import marimo as mo
     import numpy as np
     import pandas as pd
     import torch
+    from maxent_triplet_selector import MaxEntTripletSelector
+    from sklearn.preprocessing import StandardScaler
+
+    import torchaudio
+    from speechbrain.inference.encoders import MelSpectrogramEncoder
 
     from src.globals import CSV_FOLDER, DATASET_FOLDER
     from src.utils import get_trimmed_audio
 
-    return CSV_FOLDER, DATASET_FOLDER, get_trimmed_audio, mo, np, os, pd
+    return (
+        CSV_FOLDER,
+        DATASET_FOLDER,
+        MaxEntTripletSelector,
+        MelSpectrogramEncoder,
+        StandardScaler,
+        UMAP,
+        get_trimmed_audio,
+        mo,
+        np,
+        os,
+        pd,
+    )
 
 
 @app.cell(hide_code=True)
@@ -38,9 +56,22 @@ def _(mo):
 
 @app.cell
 def _(CSV_FOLDER, os, pd):
-    subpath = "LargeDataset/triplet_selection"
-    filename = "dataset_vq3.csv"
-    df = pd.read_csv(os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id")
+    subpath = "LargeDataset/"
+    filename = "dataset_survey_2.csv"
+    df = pd.read_csv(
+        os.path.join(CSV_FOLDER, subpath, filename), index_col="track_id"
+    )
+    df.drop(
+        columns=[
+            "cluster",
+            "UMAP_2D_1",
+            "UMAP_2D_2",
+            "UMAP_3D_1",
+            "UMAP_3D_2",
+            "UMAP_3D_3",
+        ],
+        inplace=True,
+    )
     df
     return (df,)
 
@@ -55,8 +86,14 @@ def _(mo):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    embeddings_path = os.path.join(DATASET_FOLDER, "fma_large_embeddings", f"mel_spec_enc_nlognK.safetensors")
-    triplets_path = os.path.join(DATASET_FOLDER, "fma_large_triplets", f"mel_spec_enc_nlognK.npy")
+    embeddings_path = os.path.join(
+        DATASET_FOLDER,
+        "fma_large_embeddings",
+        f"mel_spec_enc_nlognK_survey_2.safetensors",
+    )
+    triplets_path = os.path.join(
+        DATASET_FOLDER, "fma_large_triplets", f"mel_spec_enc_nlognK_survey_2.npy"
+    )
     return embeddings_path, triplets_path
 
 
@@ -91,11 +128,10 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import torchaudio
-    from speechbrain.inference.encoders import MelSpectrogramEncoder
-
-    embedder = MelSpectrogramEncoder.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb-mel-spec")
+def _(MelSpectrogramEncoder):
+    embedder = MelSpectrogramEncoder.from_hparams(
+        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
+    )
     return (embedder,)
 
 
@@ -111,23 +147,24 @@ def _(mo):
 
 
 @app.cell
-def _(X, df, embedder, embeddings_path, triplets_path):
-    from maxent_triplet_selector import MaxEntTripletSelector
-
-    selector = MaxEntTripletSelector(embedder=embedder)
-    best_batch = selector.get_best_batch(X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path)
+def _(MaxEntTripletSelector, X, df, embedder, embeddings_path, triplets_path):
+    selector = MaxEntTripletSelector(embedder=embedder, clustering="None", B=90)
+    best_batch = selector.get_best_batch(
+        X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path
+    )
     best_batch
     return best_batch, selector
 
 
 @app.cell
-def _(X, df, embeddings_path, selector, triplets_path):
-    selector.get_best_batch(X=X, embeddings_path=embeddings_path, df=df, batch_path=triplets_path, use_index_col=False)
-    return
-
-
-@app.cell
-def _(best_batch, np, triplets_path):
+def _(X, best_batch, df, embeddings_path, np, selector, triplets_path):
+    selector.get_best_batch(
+        X=X,
+        embeddings_path=embeddings_path,
+        df=df,
+        batch_path=triplets_path,
+        use_index_col=False,
+    )
     with open(triplets_path.replace(".npy", "_index.npy"), "wb") as f:
         np.save(f, best_batch.astype(np.int32))
     return
@@ -144,8 +181,9 @@ def _(mo):
 
 
 @app.cell
-def _(df, selector):
-    df["cluster"] = selector.cluster_ids
+def _(df, np):
+    # df["cluster"] = selector.cluster_ids
+    df["cluster"] = np.zeros(len(df))
     df
     return
 
@@ -155,13 +193,6 @@ def _(selector):
     mean_embeddings = selector.embeddings.mean(dim=1)
     mean_embeddings.shape
     return (mean_embeddings,)
-
-
-@app.cell
-def _():
-    from sklearn.preprocessing import StandardScaler
-
-    return (StandardScaler,)
 
 
 @app.cell
@@ -175,16 +206,7 @@ def _(StandardScaler, mean_embeddings):
 
 @app.cell
 def _():
-    from umap import UMAP
-
-    return (UMAP,)
-
-
-@app.cell
-def _(UMAP):
     umap_settings = {"n_neighbors": 5, "min_dist": 0.1, "metric": "cosine"}
-
-    reducer_2d = UMAP(n_components=2, **umap_settings)
     return (umap_settings,)
 
 
@@ -196,7 +218,9 @@ def _(UMAP, df, mean_embeddings_scaled, pd, umap_settings):
         umap_embeddings = reducer.fit_transform(mean_embeddings_scaled)
 
         embedding_df = pd.DataFrame(
-            umap_embeddings, index=df.index, columns=[f"UMAP_{dim}D_{d+1}" for d in range(dim)]
+            umap_embeddings,
+            index=df.index,
+            columns=[f"UMAP_{dim}D_{d + 1}" for d in range(dim)],
         )
         df_joined = df_joined.join(embedding_df)
 
