@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.8"
+__generated_with = "0.23.9"
 app = marimo.App(width="full")
 
 
@@ -189,6 +189,15 @@ def _(pd, phoneme_df, surveyAnswers_, surveyQuestions):
     return (surveyAnswers,)
 
 
+@app.cell
+def _(CSV_FOLDER, os, pd):
+    old_df_path = os.path.join(
+        CSV_FOLDER, "LargeDataset", "dataset_vq3_finished.csv"
+    )
+    old_df = pd.read_csv(old_df_path, index_col="track_id")
+    return (old_df,)
+
+
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
@@ -198,18 +207,21 @@ def _(mo):
 
 
 @app.cell
-def _(pd, track_df):
-    MAX_TRACKS_PER_GENRE = 18
+def _(old_df, pd, track_df):
+    MAX_TRACKS_PER_GENRE = 20
 
     content_length_mask = track_df.vocal_content_length_s >= 10
-    release_mask = track_df.release_date >= pd.Timestamp("2003-01-01")
+    release_mask = track_df.release_date >= pd.Timestamp("2000-01-01")
     language_mask = track_df.language == "en"
     phoneme_confidence_mask = track_df.phoneme_confidence >= 0.05
+    exclude_ids = [114943, 98662]
+    track_id_mask = ~track_df.index.isin(exclude_ids)
     mask = (
         language_mask
         & content_length_mask
         & release_mask
         & phoneme_confidence_mask
+        & track_id_mask
     )
     dropna_columns = ["genre_top", "release_date"]
     cut_track_df = track_df[mask].dropna(subset=dropna_columns)
@@ -225,7 +237,8 @@ def _(pd, track_df):
             cut_track_df.groupby("pred_gender")["pred_gender"].count().min()
         )
     ).sort_index()
-
+    missing_cols = [c for c in old_df.columns if c not in cut_track_df.columns]
+    cut_track_df = cut_track_df.join(old_df[missing_cols])
     cut_track_df
     return (cut_track_df,)
 
