@@ -58,6 +58,7 @@ def plot_scores(
     ylabel: str = "Features",
     save_path: str = None,
     random_chance: float = None,
+    human_baseline: float = None,
 ):
     """Plots any scores as a bar plot
 
@@ -82,6 +83,17 @@ def plot_scores(
             alpha=1.0,
             label=f"Random chance = {random_chance:.3f}",
         )
+
+    if human_baseline is not None:
+        plt.axvline(
+            x=human_baseline,
+            linestyle=":",
+            color="green",
+            alpha=1.0,
+            label=f"Human Baseline = {human_baseline:.3f}",
+        )
+
+    if random_chance is not None or human_baseline is not None:
         plt.legend()
     plt.title(title)
     plt.xlabel(xlabel)

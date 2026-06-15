@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.8"
+__generated_with = "0.23.9"
 app = marimo.App(width="medium")
 
 
@@ -53,7 +53,7 @@ def _():
 
 @app.cell
 def _(PLOT_FOLDER, os):
-    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_1")
+    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
     return (PLOT_SAVE_DIR,)
 
 
@@ -71,8 +71,7 @@ def _(CSV_FOLDER, os, pd):
         os.path.join(
             CSV_FOLDER,
             "LargeDataset",
-            "additional_features",
-            "high_level_features.csv",
+            "dataset_survey_2_final.csv",
         ),
         index_col="track_id",
     )
@@ -82,7 +81,7 @@ def _(CSV_FOLDER, os, pd):
 
 @app.cell
 def _(DATASET_FOLDER, os, pd):
-    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
+    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
 
 
     def parse_js_date(series):
@@ -160,6 +159,53 @@ def _(surveyAnswers):
     )
     RANDOM_CHANCE
     return (RANDOM_CHANCE,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Create Human Baseline
+    """)
+    return
+
+
+@app.cell
+def _(surveyAnswers):
+    def get_perc_values(questionID: str):
+        answers = surveyAnswers[surveyAnswers.questionID == questionID]
+        n = len(answers)
+        a = None if n == 0 else (len(answers[answers.answer_1 == "A"]) / n)
+        b = None if n == 0 else (len(answers[answers.answer_1 == "B"]) / n)
+        instruments_on = (
+            None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
+        )
+        agreement = None if n == 0 else max(a, b)
+        return {
+            "num_answers": n,
+            "A_perc": a,
+            "B_perc": b,
+            "agreement": agreement,
+            "instruments_on": instruments_on,
+        }
+
+    return (get_perc_values,)
+
+
+@app.cell
+def _(get_perc_values, pd, surveyQuestions):
+    surveyQuestions[
+        ["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]
+    ] = surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
+    surveyQuestions
+    return
+
+
+@app.cell
+def _(surveyQuestions):
+    multi_answer_mask = surveyQuestions.num_answers > 1
+    HUMAN_BASELINE = surveyQuestions[multi_answer_mask].agreement.mean()
+    HUMAN_BASELINE
+    return (HUMAN_BASELINE,)
 
 
 @app.cell(hide_code=True)
@@ -425,6 +471,7 @@ def _(get_all_scores, hl_features, scale_df, track_df):
 
 @app.cell
 def _(
+    HUMAN_BASELINE,
     PLOT_SAVE_DIR,
     RANDOM_CHANCE,
     get_mean_values,
@@ -438,6 +485,7 @@ def _(
         title="High Level Feature Accuracy",
         xlabel="Mean Accuracy (%)",
         random_chance=RANDOM_CHANCE,
+        human_baseline=HUMAN_BASELINE,
         save_path=os.path.join(PLOT_SAVE_DIR, "hl_feature_accuracy.png"),
     )
     return
@@ -531,12 +579,20 @@ def _(embedding_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, RANDOM_CHANCE, embedding_gda_df, os, plot_scores):
+def _(
+    HUMAN_BASELINE,
+    PLOT_SAVE_DIR,
+    RANDOM_CHANCE,
+    embedding_gda_df,
+    os,
+    plot_scores,
+):
     plot_scores(
         x=embedding_gda_df["accuracy"].mean(),
         y=embedding_gda_df["accuracy"].columns,
         title="Embedding Accuracy",
         random_chance=RANDOM_CHANCE,
+        human_baseline=HUMAN_BASELINE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "emb_gda_accuracy.png"),
@@ -587,12 +643,20 @@ def _(ft_embedding_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, RANDOM_CHANCE, ft_embedding_gda_df, os, plot_scores):
+def _(
+    HUMAN_BASELINE,
+    PLOT_SAVE_DIR,
+    RANDOM_CHANCE,
+    ft_embedding_gda_df,
+    os,
+    plot_scores,
+):
     plot_scores(
         x=ft_embedding_gda_df["accuracy"].mean(),
         y=ft_embedding_gda_df["accuracy"].columns,
         title="Fine Tuned Embedding Accuracy",
         random_chance=RANDOM_CHANCE,
+        human_baseline=HUMAN_BASELINE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "ft_emb_gda_accuracy.png"),
@@ -631,7 +695,7 @@ def _(SAMPLE_RATE, get_trimmed_audio):
 @app.cell
 def _(DATASET_FOLDER, os):
     gemaps_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "gemaps.npy"
+        DATASET_FOLDER, "fma_large_feature_sets", "survey_2_gemaps.npy"
     )
     return (gemaps_feature_path,)
 
@@ -686,6 +750,7 @@ def _(gemaps_features_df, get_all_scores):
 
 @app.cell
 def _(
+    HUMAN_BASELINE,
     PLOT_SAVE_DIR,
     RANDOM_CHANCE,
     gemaps_agreements,
@@ -703,6 +768,7 @@ def _(
         y=top_gemaps_score_values.keys(),
         title=f"GeMAPS Single Feature Accuracy (Top {TOP_X})",
         random_chance=RANDOM_CHANCE,
+        human_baseline=HUMAN_BASELINE,
         xlabel="Mean Accuracy (%)",
         save_path=os.path.join(PLOT_SAVE_DIR, "gemaps_single_accuracy.png"),
     )
@@ -725,12 +791,20 @@ def _(gemaps_features_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, RANDOM_CHANCE, gemaps_gda_df, os, plot_scores):
+def _(
+    HUMAN_BASELINE,
+    PLOT_SAVE_DIR,
+    RANDOM_CHANCE,
+    gemaps_gda_df,
+    os,
+    plot_scores,
+):
     plot_scores(
         x=gemaps_gda_df["accuracy"].mean(),
         y=gemaps_gda_df["accuracy"].columns,
         title="All GeMAPS Features Accuracy",
         random_chance=RANDOM_CHANCE,
+        human_baseline=HUMAN_BASELINE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "gemaps_all_accuracy.png"),
@@ -758,7 +832,7 @@ def _(opensmile):
 @app.cell
 def _(DATASET_FOLDER, os):
     compare_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "compare.npy"
+        DATASET_FOLDER, "fma_large_feature_sets", "survey_2_compare.npy"
     )
     return (compare_feature_path,)
 
@@ -838,12 +912,20 @@ def _(compare_features_df, get_global_scores):
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, RANDOM_CHANCE, compare_gda_df, os, plot_scores):
+def _(
+    HUMAN_BASELINE,
+    PLOT_SAVE_DIR,
+    RANDOM_CHANCE,
+    compare_gda_df,
+    os,
+    plot_scores,
+):
     plot_scores(
         x=compare_gda_df["accuracy"].mean(),
         y=compare_gda_df["accuracy"].columns,
         title="All ComParE Features Accuracy",
         random_chance=RANDOM_CHANCE,
+        human_baseline=HUMAN_BASELINE,
         xlabel="Mean Accuracy (%)",
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "compare_all_accuracy.png"),

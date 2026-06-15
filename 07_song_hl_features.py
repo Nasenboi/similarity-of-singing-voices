@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.23.9"
 app = marimo.App(width="medium")
 
 
@@ -36,7 +36,7 @@ def _():
 
 @app.cell
 def _(DATASET_FOLDER, os, pd):
-    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
+    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="trackID")
     songs
     return (songs,)
@@ -64,8 +64,7 @@ def _(CSV_FOLDER, os, pd, songs):
         os.path.join(
             CSV_FOLDER,
             "LargeDataset",
-            "additional_features",
-            "genres.csv",
+            "dataset_survey_2_final.csv",
         ),
         index_col="track_id",
     ).join(songs["skipInSurvey"])

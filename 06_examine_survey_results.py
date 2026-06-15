@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.8"
+__generated_with = "0.23.9"
 app = marimo.App(width="medium")
 
 
@@ -42,7 +42,7 @@ def _():
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey")
+    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
     return (SURVEY_FOLDER,)
 
 
