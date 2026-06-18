@@ -24,6 +24,7 @@ def _():
     import seaborn as sns
     from sklearn.preprocessing import StandardScaler
 
+
     from src.globals import (
         AUDIO_FOLDER,
         CSV_FOLDER,
@@ -34,7 +35,8 @@ def _():
         UVR_MODEL_PATH,
         PLOT_FOLDER,
     )
-    from src.plotting import plot_scores
+    from src import load_singer_identity_model
+    from src.plotting import plot_correlation_bar, plot_correlation_scatter
 
     return (
         CSV_FOLDER,
@@ -43,11 +45,13 @@ def _():
         MODEL_FOLDER,
         PLOT_FOLDER,
         StandardScaler,
+        load_singer_identity_model,
         mo,
         np,
         os,
         pd,
-        plot_scores,
+        plot_correlation_bar,
+        plot_correlation_scatter,
     )
 
 
@@ -158,7 +162,7 @@ def _(surveyAnswers):
         surveyAnswers
     )
     RANDOM_CHANCE
-    return (RANDOM_CHANCE,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -196,6 +200,7 @@ def _(get_perc_values, pd, surveyQuestions):
     surveyQuestions[
         ["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]
     ] = surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
+    surveyQuestions.dropna(axis=0, inplace=True)
     surveyQuestions
     return
 
@@ -205,7 +210,7 @@ def _(surveyQuestions):
     multi_answer_mask = surveyQuestions.num_answers > 1
     HUMAN_BASELINE = surveyQuestions[multi_answer_mask].agreement.mean()
     HUMAN_BASELINE
-    return (HUMAN_BASELINE,)
+    return
 
 
 @app.cell(hide_code=True)
@@ -225,68 +230,55 @@ def _(mo):
 
 
 @app.cell
-def _(List, StandardScaler, mo, pd, surveyAnswers):
-    def get_scores(x, a_1, a_2):
-        scores = {}
+def _(List, StandardScaler, mo, pd, surveyQuestions):
+    def get_distance(x, a_1, a_2):
         if pd.api.types.is_numeric_dtype(type(x)):
             dist_a_1 = abs(x - a_1)
             dist_a_2 = abs(x - a_2)
-            scores["distance"] = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
-            if dist_a_1 < dist_a_2:
-                scores["agreement"] = 1.0  # => agreement
-                scores["accuracy"] = 1.0
-            elif dist_a_2 < dist_a_1:
-                scores["agreement"] = -1.0  # => disagreement
-                scores["accuracy"] = 0.0
-            else:
-                scores["agreement"] = 0.0  # => uncertainty
-                scores["accuracy"] = 0.0
+            if dist_a_1 + dist_a_2 == 0:
+                return 0.5  # small failsave to avoid zero division
+            # -1 to 1: -1 => A2 is more similar to X, 1 => A1 is more similar to X
+            norm_dist = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
+            # 0 to 1: 0 => A2 is more similar to X, 1 => A1 is more similar to X
+            return (norm_dist + 1) / 2
         else:
             if a_1 == a_2:
-                scores["agreement"] = 0.0  # => uncertainty
-                scores["accuracy"] = 0.0
+                return 0.5  # Uncertainty
             elif a_1 == x:
-                scores["agreement"] = 1.0  # => agreement
-                scores["accuracy"] = 1.0
+                return 1.0  # A1 more similar to X
             elif a_2 == x:
-                scores["agreement"] = -1.0  # => disagreement
-                scores["accuracy"] = 0.0
+                return 0.0  # A2 more similar to X
             else:
-                scores["agreement"] = 0.0  # => uncertainty
-                scores["accuracy"] = 0.0
-        return scores
+                return 0.5  # Uncertainty
 
 
-    def get_local_feature_scores(
-        answer,
+    def get_local_feature_distances(
+        question,
         feature_df: pd.DataFrame,
         feature_key: str,
     ):
-        x = feature_df.loc[answer["track_id_X"]][feature_key]
-        a_1 = feature_df.loc[answer["track_id_1"]][feature_key]
-        a_2 = feature_df.loc[answer["track_id_2"]][feature_key]
-        return get_scores(x, a_1, a_2)
+        x = feature_df.loc[question["X"]][feature_key]
+        a_1 = feature_df.loc[question["A"]][feature_key]
+        a_2 = feature_df.loc[question["B"]][feature_key]
+        return get_distance(x, a_1, a_2)
 
 
-    def get_all_scores(
+    def get_all_distances(
         feature_df: pd.DataFrame,
         feature_list: List[str],
     ) -> pd.DataFrame:
         columns = {}
         for feat in mo.status.progress_bar(
             feature_list,
-            title="Calculating Feature Scores...",
+            title="Calculating Feature Distances...",
             remove_on_exit=True,
         ):
-            feat_scores = surveyAnswers.apply(
-                lambda x, f=feat: get_local_feature_scores(x, feature_df, f),
+            feat_scores = surveyQuestions.apply(
+                lambda x, f=feat: get_local_feature_distances(x, feature_df, f),
                 axis=1,
             )
-            feat_df = pd.DataFrame(feat_scores.tolist(), index=surveyAnswers.index)
-            for metric in feat_df.columns:
-                columns[(metric, feat)] = feat_df[metric]
-        agree_df = pd.DataFrame(columns)
-        agree_df.columns = pd.MultiIndex.from_tuples(agree_df.columns)
+            columns[feat] = feat_scores.to_list()
+        agree_df = pd.DataFrame(columns, index=surveyQuestions.index)
         return agree_df
 
 
@@ -313,7 +305,7 @@ def _(List, StandardScaler, mo, pd, surveyAnswers):
         df[cols] = scaler.fit_transform(feature_df[cols])
         return df
 
-    return get_all_scores, get_mean_values, scale_df
+    return get_all_distances, scale_df
 
 
 @app.cell(hide_code=True)
@@ -346,17 +338,15 @@ def _(
     minkowski,
     mo,
     pd,
-    surveyAnswers,
+    surveyQuestions,
 ):
     minkowski_p = 4
 
 
-    def get_distance_scores_row(
-        answer, feature_df, distance_algorithm
-    ) -> pd.Series:
-        x = feature_df.loc[answer["track_id_X"]].values
-        a_1 = feature_df.loc[answer["track_id_1"]].values
-        a_2 = feature_df.loc[answer["track_id_2"]].values
+    def get_distance_row(question, feature_df, distance_algorithm) -> pd.Series:
+        x = feature_df.loc[question["X"]].values
+        a_1 = feature_df.loc[question["A"]].values
+        a_2 = feature_df.loc[question["B"]].values
         if distance_algorithm == "euclidean":
             dist_a_1 = euclidean(x, a_1)
             dist_a_2 = euclidean(x, a_2)
@@ -376,12 +366,10 @@ def _(
             raise NotImplementedError(
                 f"Distance Measure {distance_algorithm} is not implemented yet!"
             )
-        dist = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
-        acc_score = 1.0 if dist_a_1 < dist_a_2 else 0.0
-        agg_score = -1.0 if dist_a_2 < dist_a_1 else acc_score
-        return pd.Series(
-            {"distance": dist, "accuracy": acc_score, "agreement": agg_score}
-        )
+        # -1 to 1: -1 => A2 is more similar to X, 1 => A1 is more similar to X
+        norm_dist = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
+        # 0 to 1: 0 => A2 is more similar to X, 1 => A1 is more similar to X
+        return (norm_dist + 1) / 2
 
 
     distance_algorithms = [
@@ -408,13 +396,10 @@ def _(
         for d in mo.status.progress_bar(
             distance_algorithms, title="Calculating GDAs", remove_on_exit=True
         ):
-            gda_df[[("distance", d), ("accuracy", d), ("agreement", d)]] = (
-                surveyAnswers.apply(
-                    lambda x: get_distance_scores_row(x, feature_df, d),
-                    axis=1,
-                )
+            gda_df[f"distance_{d}"] = surveyQuestions.apply(
+                lambda x: get_distance_row(x, feature_df, d),
+                axis=1,
             )
-        gda_df.columns = pd.MultiIndex.from_tuples(gda_df.columns)
         return gda_df
 
     return (get_global_scores,)
@@ -449,7 +434,7 @@ def _():
 
 
 @app.cell
-def _(get_all_scores, hl_features, scale_df, track_df):
+def _(get_all_distances, hl_features, scale_df, track_df):
     scaled_track_df = scale_df(
         track_df,
         [
@@ -464,53 +449,56 @@ def _(get_all_scores, hl_features, scale_df, track_df):
             "pred_age_no_trim",
         ],
     )
-    hl_agreements = get_all_scores(scaled_track_df, hl_features)
-    hl_agreements
-    return (hl_agreements,)
+    hl_distances = get_all_distances(scaled_track_df, hl_features)
+    hl_distances
+    return (hl_distances,)
+
+
+@app.cell
+def _(hl_distances, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="High Level Feature Correlations",
+        feature_df=hl_distances,
+        human_baseline=surveyQuestions["A_perc"],
+        top_x=10,
+    )
+    return
 
 
 @app.cell
 def _(
-    HUMAN_BASELINE,
     PLOT_SAVE_DIR,
-    RANDOM_CHANCE,
-    get_mean_values,
-    hl_agreements,
+    hl_distances,
     os,
-    plot_scores,
+    plot_correlation_scatter,
+    surveyQuestions,
 ):
-    plot_scores(
-        x=get_mean_values(hl_agreements["accuracy"]).values(),
-        y=hl_agreements["accuracy"].columns,
-        title="High Level Feature Accuracy",
-        xlabel="Mean Accuracy (%)",
-        random_chance=RANDOM_CHANCE,
-        human_baseline=HUMAN_BASELINE,
-        save_path=os.path.join(PLOT_SAVE_DIR, "hl_feature_accuracy.png"),
+    plot_correlation_scatter(
+        title="Gender Feature Correlation",
+        x=surveyQuestions["A_perc"],
+        y=hl_distances["pred_p_male"],
+        save_path=os.path.join(
+            PLOT_SAVE_DIR, "questions_pred_gender_correlation.png"
+        ),
     )
     return
 
 
 @app.cell
-def _(PLOT_SAVE_DIR, get_mean_values, hl_agreements, os, plot_scores):
-    plot_scores(
-        x=get_mean_values(hl_agreements["agreement"]).values(),
-        y=hl_agreements["agreement"].columns,
-        title="High Level Feature Agreement",
-        xlabel="Mean Agreement Score",
-        save_path=os.path.join(PLOT_SAVE_DIR, "hl_feature_agreement.png"),
-    )
-    return
-
-
-@app.cell
-def _(PLOT_SAVE_DIR, get_mean_values, hl_agreements, os, plot_scores):
-    plot_scores(
-        x=get_mean_values(hl_agreements["distance"]).values(),
-        y=hl_agreements["distance"].columns,
-        title="High Level Feature Distance Differences",
-        xlabel="Mean Distance Difference: dist(x,b)-dist(x,a) / dist(x,a)+dist(x,b)",
-        save_path=os.path.join(PLOT_SAVE_DIR, "hl_feature_distance.png"),
+def _(
+    PLOT_SAVE_DIR,
+    hl_distances,
+    os,
+    plot_correlation_scatter,
+    surveyQuestions,
+):
+    plot_correlation_scatter(
+        title="Age Feature Correlation",
+        x=surveyQuestions["A_perc"],
+        y=hl_distances["pred_age"],
+        save_path=os.path.join(
+            PLOT_SAVE_DIR, "questions_pred_age_correlation.png"
+        ),
     )
     return
 
@@ -574,28 +562,27 @@ def _(encoder, get_embedding, np, pd, scale_df, track_df):
 @app.cell
 def _(embedding_df, get_global_scores):
     embedding_gda_df = get_global_scores(embedding_df)
-    embedding_gda_df["accuracy"].describe()
+    embedding_gda_df
     return (embedding_gda_df,)
 
 
 @app.cell
-def _(
-    HUMAN_BASELINE,
-    PLOT_SAVE_DIR,
-    RANDOM_CHANCE,
-    embedding_gda_df,
-    os,
-    plot_scores,
-):
-    plot_scores(
-        x=embedding_gda_df["accuracy"].mean(),
-        y=embedding_gda_df["accuracy"].columns,
-        title="Embedding Accuracy",
-        random_chance=RANDOM_CHANCE,
-        human_baseline=HUMAN_BASELINE,
-        xlabel="Mean Accuracy (%)",
-        ylabel="Distance Algorithm",
-        save_path=os.path.join(PLOT_SAVE_DIR, "emb_gda_accuracy.png"),
+def _(embedding_gda_df, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="Ecapa Embeddings Correlations",
+        feature_df=embedding_gda_df,
+        human_baseline=surveyQuestions["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(embedding_gda_df, plot_correlation_scatter, surveyQuestions):
+    plot_correlation_scatter(
+        title="Ecapa Embeddings Correlation",
+        x=surveyQuestions["A_perc"],
+        y=embedding_gda_df["distance_chebyshev"],
     )
     return
 
@@ -609,7 +596,8 @@ def _(mo):
 
 
 @app.cell
-def _(MODEL_FOLDER, encoder, os, torch):
+def _():
+    """
     finetuned_encoder_path = os.path.join(
         MODEL_FOLDER,
         "finetuned_encoder",
@@ -618,11 +606,7 @@ def _(MODEL_FOLDER, encoder, os, torch):
     encoder.hparams.embedding_model.load_state_dict(
         torch.load(finetuned_encoder_path)
     )
-    return
 
-
-@app.cell
-def _(encoder, get_embedding, np, pd, scale_df, track_df):
     ft_embedding_df = pd.DataFrame(
         np.stack(
             track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values
@@ -632,25 +616,11 @@ def _(encoder, get_embedding, np, pd, scale_df, track_df):
     )
     ft_embedding_df = scale_df(ft_embedding_df)
     ft_embedding_df
-    return (ft_embedding_df,)
 
-
-@app.cell
-def _(ft_embedding_df, get_global_scores):
     ft_embedding_gda_df = get_global_scores(ft_embedding_df)
     ft_embedding_gda_df["accuracy"].describe()
-    return (ft_embedding_gda_df,)
 
 
-@app.cell
-def _(
-    HUMAN_BASELINE,
-    PLOT_SAVE_DIR,
-    RANDOM_CHANCE,
-    ft_embedding_gda_df,
-    os,
-    plot_scores,
-):
     plot_scores(
         x=ft_embedding_gda_df["accuracy"].mean(),
         y=ft_embedding_gda_df["accuracy"].columns,
@@ -661,6 +631,89 @@ def _(
         ylabel="Distance Algorithm",
         save_path=os.path.join(PLOT_SAVE_DIR, "ft_emb_gda_accuracy.png"),
     )
+    """
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Singer Identity Model Agreement
+    """)
+    return
+
+
+@app.cell
+def _(MODEL_FOLDER, load_singer_identity_model, os):
+    singer_ID_model_path = os.path.join(MODEL_FOLDER, "singer-identity", "byol")
+    sID_SAMPLE_RATE = 44100
+    singer_ID_model = load_singer_identity_model(
+        singer_ID_model_path, input_sr=sID_SAMPLE_RATE
+    )
+    singer_ID_model.eval()
+    return sID_SAMPLE_RATE, singer_ID_model
+
+
+@app.cell
+def _(get_trimmed_audio, sID_SAMPLE_RATE):
+    def get_singer_ID_embedding(song_path, enc):
+        trimmed_audio = get_trimmed_audio(song_path, sr=sID_SAMPLE_RATE)
+        return enc(trimmed_audio).cpu().detach().squeeze()
+
+    return (get_singer_ID_embedding,)
+
+
+@app.cell
+def _(
+    get_singer_ID_embedding,
+    np,
+    pd,
+    scale_df,
+    singer_ID_model,
+    torch,
+    track_df,
+):
+    with torch.no_grad():
+        sID_embedding_df = pd.DataFrame(
+            np.stack(
+                track_df.song_path.apply(
+                    lambda x: get_singer_ID_embedding(x, singer_ID_model)
+                ).values
+            ),
+            columns=[f"emb_{e}" for e in range(1000)],
+            index=track_df.index,
+        )
+    sID_embedding_df = scale_df(sID_embedding_df)
+    sID_embedding_df
+    return (sID_embedding_df,)
+
+
+@app.cell
+def _(get_global_scores, sID_embedding_df):
+    sID_embedding_gda_df = get_global_scores(sID_embedding_df)
+    return (sID_embedding_gda_df,)
+
+
+@app.cell
+def _(plot_correlation_bar, sID_embedding_gda_df, surveyQuestions):
+    plot_correlation_bar(
+        title="Singer ID Embeddings Correlations",
+        feature_df=sID_embedding_gda_df,
+        human_baseline=surveyQuestions["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _():
+    """
+    plot_correlation_scatter(
+        title="Ecapa Embeddings Correlation",
+        x=surveyQuestions["A_perc"],
+        y=sID_embedding_gda_df["distance_cosine"],
+    )
+    """
     return
 
 
@@ -740,37 +793,39 @@ def _(mo):
 
 
 @app.cell
-def _(gemaps_features_df, get_all_scores):
-    gemaps_agreements = get_all_scores(
+def _(gemaps_features_df, get_all_distances):
+    gemaps_distances = get_all_distances(
         gemaps_features_df, gemaps_features_df.columns
     )
-    gemaps_agreements
-    return (gemaps_agreements,)
+    gemaps_distances
+    return (gemaps_distances,)
+
+
+@app.cell
+def _(gemaps_distances, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="GeMAPS Feature Correlations",
+        feature_df=gemaps_distances,
+        human_baseline=surveyQuestions["A_perc"],
+        top_x=10,
+    )
+    return
 
 
 @app.cell
 def _(
-    HUMAN_BASELINE,
     PLOT_SAVE_DIR,
-    RANDOM_CHANCE,
-    gemaps_agreements,
-    get_mean_values,
+    gemaps_distances,
     os,
-    plot_scores,
+    plot_correlation_scatter,
+    surveyQuestions,
 ):
-    TOP_X = 15
-    top_gemaps_score_values = get_mean_values(
-        gemaps_agreements["accuracy"], top_x=TOP_X
-    )
-
-    plot_scores(
-        x=top_gemaps_score_values.values(),
-        y=top_gemaps_score_values.keys(),
-        title=f"GeMAPS Single Feature Accuracy (Top {TOP_X})",
-        random_chance=RANDOM_CHANCE,
-        human_baseline=HUMAN_BASELINE,
-        xlabel="Mean Accuracy (%)",
-        save_path=os.path.join(PLOT_SAVE_DIR, "gemaps_single_accuracy.png"),
+    plot_correlation_scatter(
+        title="GeMAPS F0 80 Percentile Correlation",
+        x=surveyQuestions["A_perc"],
+        y=gemaps_distances["F0semitoneFrom27.5Hz_sma3nz_percentile80.0"],
+        legend_loc="lower right",
+        save_path=os.path.join(PLOT_SAVE_DIR, "questions_gemaps_F0_perc80.0.png"),
     )
     return
 
@@ -786,28 +841,35 @@ def _(mo):
 @app.cell
 def _(gemaps_features_df, get_global_scores):
     gemaps_gda_df = get_global_scores(gemaps_features_df)
-    gemaps_gda_df["accuracy"].describe()
+    gemaps_gda_df
     return (gemaps_gda_df,)
 
 
 @app.cell
+def _(gemaps_gda_df, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="GeMAPS Feature Set Correlations",
+        feature_df=gemaps_gda_df,
+        human_baseline=surveyQuestions["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
 def _(
-    HUMAN_BASELINE,
     PLOT_SAVE_DIR,
-    RANDOM_CHANCE,
     gemaps_gda_df,
     os,
-    plot_scores,
+    plot_correlation_scatter,
+    surveyQuestions,
 ):
-    plot_scores(
-        x=gemaps_gda_df["accuracy"].mean(),
-        y=gemaps_gda_df["accuracy"].columns,
-        title="All GeMAPS Features Accuracy",
-        random_chance=RANDOM_CHANCE,
-        human_baseline=HUMAN_BASELINE,
-        xlabel="Mean Accuracy (%)",
-        ylabel="Distance Algorithm",
-        save_path=os.path.join(PLOT_SAVE_DIR, "gemaps_all_accuracy.png"),
+    plot_correlation_scatter(
+        title="GeMAPS Feature Set Correlation",
+        x=surveyQuestions["A_perc"],
+        y=gemaps_gda_df["distance_euclidean"],
+        legend_loc="lower right",
+        save_path=os.path.join(PLOT_SAVE_DIR, "questions_gemaps_feature_set.png"),
     )
     return
 
@@ -907,28 +969,35 @@ def _(mo):
 @app.cell
 def _(compare_features_df, get_global_scores):
     compare_gda_df = get_global_scores(compare_features_df)
-    compare_gda_df["accuracy"].describe()
+    compare_gda_df
     return (compare_gda_df,)
 
 
 @app.cell
+def _(compare_gda_df, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="ComParE Feature Set Correlations",
+        feature_df=compare_gda_df,
+        human_baseline=surveyQuestions["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
 def _(
-    HUMAN_BASELINE,
     PLOT_SAVE_DIR,
-    RANDOM_CHANCE,
     compare_gda_df,
     os,
-    plot_scores,
+    plot_correlation_scatter,
+    surveyQuestions,
 ):
-    plot_scores(
-        x=compare_gda_df["accuracy"].mean(),
-        y=compare_gda_df["accuracy"].columns,
-        title="All ComParE Features Accuracy",
-        random_chance=RANDOM_CHANCE,
-        human_baseline=HUMAN_BASELINE,
-        xlabel="Mean Accuracy (%)",
-        ylabel="Distance Algorithm",
-        save_path=os.path.join(PLOT_SAVE_DIR, "compare_all_accuracy.png"),
+    plot_correlation_scatter(
+        title="ComParE Feature Set Correlation",
+        x=surveyQuestions["A_perc"],
+        y=compare_gda_df["distance_chebyshev"],
+        legend_loc="lower right",
+        save_path=os.path.join(PLOT_SAVE_DIR, "questions_compare_feature_set.png"),
     )
     return
 

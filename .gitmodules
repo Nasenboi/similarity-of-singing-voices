@@ -4,3 +4,6 @@
 [submodule "src/submodules/voice-age-regression"]
 	path = src/submodules/voice-age-regression
 	url = https://github.com/griko/voice-age-regression.git
+[submodule "src/submodules/ssl-singer-identity"]
+	path = src/submodules/ssl-singer-identity
+	url = https://github.com/SonyCSLParis/ssl-singer-identity.git
