@@ -82,6 +82,22 @@ def _(SURVEY_FOLDER, os, parse_js_date, pd):
 
 
 @app.cell
+def _(surveyQuestions):
+    # There should be no duplicate triplets in all surveyQuestions
+    duplicates = surveyQuestions.duplicated(subset=["X", "A", "B"], keep=False)
+    print(surveyQuestions[duplicates])
+    return
+
+
+@app.cell
+def _(surveyQuestions):
+    # tag randomized questions
+    surveyQuestions["randomized"] = surveyQuestions.questionnaireID < 3
+    surveyQuestions
+    return
+
+
+@app.cell
 def _(participants):
     participants["completionTime"] = (
         participants["editDate"] - participants["createDate"]
