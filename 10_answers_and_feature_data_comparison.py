@@ -24,18 +24,18 @@ def _():
     import seaborn as sns
     from sklearn.preprocessing import StandardScaler
 
+    from src import load_singer_identity_model
     from src.globals import (
         AUDIO_FOLDER,
         CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        PLOT_FOLDER,
         STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
-        PLOT_FOLDER,
     )
-    from src.plotting import plot_scores
-    from src import load_singer_identity_model
+    from src.statistics.plotting import plot_scores
 
     return (
         CSV_FOLDER,
@@ -85,31 +85,19 @@ def _(CSV_FOLDER, os, pd):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -145,9 +133,8 @@ def _(pd, surveyAnswers_, surveyQuestions):
             }
         )
 
-
-    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = (
-        surveyAnswers_.apply(getTrackIdsForAnswer, axis=1)
+    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = surveyAnswers_.apply(
+        getTrackIdsForAnswer, axis=1
     )
     surveyAnswers = surveyAnswers_[~surveyAnswers_.skipped].drop(columns="skipped")
     surveyAnswers
@@ -156,9 +143,7 @@ def _(pd, surveyAnswers_, surveyQuestions):
 
 @app.cell
 def _(surveyAnswers):
-    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(
-        surveyAnswers
-    )
+    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(surveyAnswers)
     RANDOM_CHANCE
     return (RANDOM_CHANCE,)
 
@@ -178,9 +163,7 @@ def _(surveyAnswers):
         n = len(answers)
         a = None if n == 0 else (len(answers[answers.answer_1 == "A"]) / n)
         b = None if n == 0 else (len(answers[answers.answer_1 == "B"]) / n)
-        instruments_on = (
-            None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
-        )
+        instruments_on = None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
         agreement = None if n == 0 else max(a, b)
         return {
             "num_answers": n,
@@ -195,9 +178,9 @@ def _(surveyAnswers):
 
 @app.cell
 def _(get_perc_values, pd, surveyQuestions):
-    surveyQuestions[
-        ["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]
-    ] = surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
+    surveyQuestions[["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]] = (
+        surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
+    )
     surveyQuestions
     return
 
@@ -258,7 +241,6 @@ def _(List, StandardScaler, mo, pd, surveyAnswers):
                 scores["accuracy"] = 0.0
         return scores
 
-
     def get_local_feature_scores(
         answer,
         feature_df: pd.DataFrame,
@@ -268,7 +250,6 @@ def _(List, StandardScaler, mo, pd, surveyAnswers):
         a_1 = feature_df.loc[answer["track_id_1"]][feature_key]
         a_2 = feature_df.loc[answer["track_id_2"]][feature_key]
         return get_scores(x, a_1, a_2)
-
 
     def get_all_scores(
         feature_df: pd.DataFrame,
@@ -291,22 +272,12 @@ def _(List, StandardScaler, mo, pd, surveyAnswers):
         agree_df.columns = pd.MultiIndex.from_tuples(agree_df.columns)
         return agree_df
 
-
-    def get_mean_values(
-        agreement_df: pd.DataFrame, feature_list=None, top_x: int = None
-    ) -> dict:
-        f_iterator = (
-            feature_list if feature_list is not None else agreement_df.columns
-        )
+    def get_mean_values(agreement_df: pd.DataFrame, feature_list=None, top_x: int = None) -> dict:
+        f_iterator = feature_list if feature_list is not None else agreement_df.columns
         mean_values = {feat: agreement_df[feat].mean() for feat in f_iterator}
         if top_x is not None:
-            mean_values = dict(
-                sorted(
-                    mean_values.items(), key=lambda item: item[1], reverse=True
-                )[:top_x]
-            )
+            mean_values = dict(sorted(mean_values.items(), key=lambda item: item[1], reverse=True)[:top_x])
         return mean_values
-
 
     def scale_df(feature_df, columns=None) -> pd.DataFrame:
         scaler = StandardScaler()
@@ -328,13 +299,7 @@ def _(mo):
 
 @app.cell
 def _():
-    from scipy.spatial.distance import (
-        euclidean,
-        chebyshev,
-        cosine,
-        minkowski,
-        canberra,
-    )
+    from scipy.spatial.distance import canberra, chebyshev, cosine, euclidean, minkowski
 
     return canberra, chebyshev, cosine, euclidean, minkowski
 
@@ -352,10 +317,7 @@ def _(
 ):
     minkowski_p = 4
 
-
-    def get_distance_scores_row(
-        answer, feature_df, distance_algorithm
-    ) -> pd.Series:
+    def get_distance_scores_row(answer, feature_df, distance_algorithm) -> pd.Series:
         x = feature_df.loc[answer["track_id_X"]].values
         a_1 = feature_df.loc[answer["track_id_1"]].values
         a_2 = feature_df.loc[answer["track_id_2"]].values
@@ -375,16 +337,11 @@ def _(
             dist_a_1 = canberra(x, a_1)
             dist_a_2 = canberra(x, a_2)
         else:
-            raise NotImplementedError(
-                f"Distance Measure {distance_algorithm} is not implemented yet!"
-            )
+            raise NotImplementedError(f"Distance Measure {distance_algorithm} is not implemented yet!")
         dist = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
         acc_score = 1.0 if dist_a_1 < dist_a_2 else 0.0
         agg_score = -1.0 if dist_a_2 < dist_a_1 else acc_score
-        return pd.Series(
-            {"distance": dist, "accuracy": acc_score, "agreement": agg_score}
-        )
-
+        return pd.Series({"distance": dist, "accuracy": acc_score, "agreement": agg_score})
 
     distance_algorithms = [
         "euclidean",
@@ -393,7 +350,6 @@ def _(
         "minkowski",
         "canberra",
     ]
-
 
     def get_global_scores(
         feature_df: pd.DataFrame,
@@ -407,14 +363,10 @@ def _(
         - canberra: normalizes per-dimension, amplifies subtle differences in low-valued features
         """
         gda_df = pd.DataFrame()
-        for d in mo.status.progress_bar(
-            distance_algorithms, title="Calculating GDAs", remove_on_exit=True
-        ):
-            gda_df[[("distance", d), ("accuracy", d), ("agreement", d)]] = (
-                surveyAnswers.apply(
-                    lambda x: get_distance_scores_row(x, feature_df, d),
-                    axis=1,
-                )
+        for d in mo.status.progress_bar(distance_algorithms, title="Calculating GDAs", remove_on_exit=True):
+            gda_df[[("distance", d), ("accuracy", d), ("agreement", d)]] = surveyAnswers.apply(
+                lambda x: get_distance_scores_row(x, feature_df, d),
+                axis=1,
             )
         gda_df.columns = pd.MultiIndex.from_tuples(gda_df.columns)
         return gda_df
@@ -543,9 +495,7 @@ def _():
 
 @app.cell
 def _(MelSpectrogramEncoder):
-    encoder = MelSpectrogramEncoder.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
-    )
+    encoder = MelSpectrogramEncoder.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb-mel-spec")
     SAMPLE_RATE = 16_000
     return SAMPLE_RATE, encoder
 
@@ -562,9 +512,7 @@ def _(SAMPLE_RATE, get_trimmed_audio):
 @app.cell
 def _(encoder, get_embedding, np, pd, scale_df, track_df):
     embedding_df = pd.DataFrame(
-        np.stack(
-            track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values
-        ),
+        np.stack(track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values),
         columns=[f"emb_{e}" for e in range(192)],
         index=track_df.index,
     )
@@ -661,7 +609,7 @@ def _(mo):
 @app.cell
 def _(MODEL_FOLDER, load_singer_identity_model, os):
     singer_ID_model_path = os.path.join(MODEL_FOLDER, "singer-identity", "byol")
-    sID_SAMPLE_RATE=44100
+    sID_SAMPLE_RATE = 44100
     singer_ID_model = load_singer_identity_model(singer_ID_model_path, input_sr=sID_SAMPLE_RATE)
     singer_ID_model.eval()
     return sID_SAMPLE_RATE, singer_ID_model
@@ -688,9 +636,7 @@ def _(
 ):
     with torch.no_grad():
         sID_embedding_df = pd.DataFrame(
-            np.stack(
-                track_df.song_path.apply(lambda x: get_singer_ID_embedding(x, singer_ID_model)).values
-            ),
+            np.stack(track_df.song_path.apply(lambda x: get_singer_ID_embedding(x, singer_ID_model)).values),
             columns=[f"emb_{e}" for e in range(1000)],
             index=track_df.index,
         )
@@ -758,9 +704,7 @@ def _(SAMPLE_RATE, get_trimmed_audio):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    gemaps_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "survey_2_gemaps.npy"
-    )
+    gemaps_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "survey_2_gemaps.npy")
     return (gemaps_feature_path,)
 
 
@@ -805,9 +749,7 @@ def _(mo):
 
 @app.cell
 def _(gemaps_features_df, get_all_scores):
-    gemaps_agreements = get_all_scores(
-        gemaps_features_df, gemaps_features_df.columns
-    )
+    gemaps_agreements = get_all_scores(gemaps_features_df, gemaps_features_df.columns)
     gemaps_agreements
     return (gemaps_agreements,)
 
@@ -823,9 +765,7 @@ def _(
     plot_scores,
 ):
     TOP_X = 15
-    top_gemaps_score_values = get_mean_values(
-        gemaps_agreements["accuracy"], top_x=TOP_X
-    )
+    top_gemaps_score_values = get_mean_values(gemaps_agreements["accuracy"], top_x=TOP_X)
 
     plot_scores(
         x=top_gemaps_score_values.values(),
@@ -895,9 +835,7 @@ def _(opensmile):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    compare_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "survey_2_compare.npy"
-    )
+    compare_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "survey_2_compare.npy")
     return (compare_feature_path,)
 
 

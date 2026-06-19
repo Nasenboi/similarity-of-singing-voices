@@ -16,6 +16,7 @@ def _(mo):
 def _():
     import os
     import pathlib
+
     import altair as alt
     import librosa
     import marimo as mo
@@ -29,15 +30,13 @@ def _():
         CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        PLOT_FOLDER,
         STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
-        PLOT_FOLDER,
     )
-    from src.phoneme_extractor.phoneme_extractor import (
-        load_data as load_phoneme_data,
-    )
-    from src.plotting import plot_scores
+    from src.phoneme_extractor.phoneme_extractor import load_data as load_phoneme_data
+    from src.statistics.plotting import plot_scores
 
     return (
         CSV_FOLDER,
@@ -115,8 +114,7 @@ def _(CSV_FOLDER, os, pd, phoneme_df):
     track_df = track_df[track_df.index.isin(phoneme_df.track_id)]
     track_df["language"] = phoneme_df.groupby("track_id")["language"].first()
     track_df["phoneme_confidence"] = (
-        phoneme_df.groupby("track_id")["confidence"].sum()
-        / phoneme_df.groupby("track_id")["confidence"].count()
+        phoneme_df.groupby("track_id")["confidence"].sum() / phoneme_df.groupby("track_id")["confidence"].count()
     )
     track_df["creation_date"] = pd.to_datetime(track_df["creation_date"])
     track_df["release_date"] = pd.to_datetime(track_df["release_date"])
@@ -128,31 +126,19 @@ def _(CSV_FOLDER, os, pd, phoneme_df):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -174,9 +160,8 @@ def _(pd, phoneme_df, surveyAnswers_, surveyQuestions):
             }
         )
 
-
-    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = (
-        surveyAnswers_.apply(getTrackIdsForAnswer, axis=1)
+    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = surveyAnswers_.apply(
+        getTrackIdsForAnswer, axis=1
     )
     survey_answers_mask = (
         (~surveyAnswers_.skipped)
@@ -191,9 +176,7 @@ def _(pd, phoneme_df, surveyAnswers_, surveyQuestions):
 
 @app.cell
 def _(CSV_FOLDER, os, pd):
-    old_df_path = os.path.join(
-        CSV_FOLDER, "LargeDataset", "dataset_vq3_finished.csv"
-    )
+    old_df_path = os.path.join(CSV_FOLDER, "LargeDataset", "dataset_vq3_finished.csv")
     old_df = pd.read_csv(old_df_path, index_col="track_id")
     return (old_df,)
 
@@ -216,26 +199,16 @@ def _(old_df, pd, track_df):
     phoneme_confidence_mask = track_df.phoneme_confidence >= 0.05
     exclude_ids = [114943, 98662]
     track_id_mask = ~track_df.index.isin(exclude_ids)
-    mask = (
-        language_mask
-        & content_length_mask
-        & release_mask
-        & phoneme_confidence_mask
-        & track_id_mask
-    )
+    mask = language_mask & content_length_mask & release_mask & phoneme_confidence_mask & track_id_mask
     dropna_columns = ["genre_top", "release_date"]
     cut_track_df = track_df[mask].dropna(subset=dropna_columns)
 
     cut_track_df = (
-        cut_track_df.sort_values("phoneme_confidence", ascending=False)
-        .groupby("genre_top")
-        .head(MAX_TRACKS_PER_GENRE)
+        cut_track_df.sort_values("phoneme_confidence", ascending=False).groupby("genre_top").head(MAX_TRACKS_PER_GENRE)
     )
 
     cut_track_df = (
-        cut_track_df.groupby("pred_gender").head(
-            cut_track_df.groupby("pred_gender")["pred_gender"].count().min()
-        )
+        cut_track_df.groupby("pred_gender").head(cut_track_df.groupby("pred_gender")["pred_gender"].count().min())
     ).sort_index()
     missing_cols = [c for c in old_df.columns if c not in cut_track_df.columns]
     cut_track_df = cut_track_df.join(old_df[missing_cols])

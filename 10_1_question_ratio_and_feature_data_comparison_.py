@@ -24,19 +24,18 @@ def _():
     import seaborn as sns
     from sklearn.preprocessing import StandardScaler
 
-
+    from src import load_singer_identity_model
     from src.globals import (
         AUDIO_FOLDER,
         CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        PLOT_FOLDER,
         STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
-        PLOT_FOLDER,
     )
-    from src import load_singer_identity_model
-    from src.plotting import plot_correlation_bar, plot_correlation_scatter
+    from src.statistics.plotting import plot_correlation_bar, plot_correlation_scatter
 
     return (
         CSV_FOLDER,
@@ -87,31 +86,19 @@ def _(CSV_FOLDER, os, pd):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -119,6 +106,13 @@ def _(DATASET_FOLDER, os, pd):
 
 @app.cell
 def _(surveyQuestions):
+    surveyQuestions
+    return
+
+
+@app.cell
+def _(surveyQuestions):
+    surveyQuestions["randomized"] = surveyQuestions.questionnaireID < 3
     surveyQuestions
     return
 
@@ -147,9 +141,8 @@ def _(pd, surveyAnswers_, surveyQuestions):
             }
         )
 
-
-    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = (
-        surveyAnswers_.apply(getTrackIdsForAnswer, axis=1)
+    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = surveyAnswers_.apply(
+        getTrackIdsForAnswer, axis=1
     )
     surveyAnswers = surveyAnswers_[~surveyAnswers_.skipped].drop(columns="skipped")
     surveyAnswers
@@ -158,9 +151,7 @@ def _(pd, surveyAnswers_, surveyQuestions):
 
 @app.cell
 def _(surveyAnswers):
-    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(
-        surveyAnswers
-    )
+    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(surveyAnswers)
     RANDOM_CHANCE
     return
 
@@ -180,9 +171,7 @@ def _(surveyAnswers):
         n = len(answers)
         a = None if n == 0 else (len(answers[answers.answer_1 == "A"]) / n)
         b = None if n == 0 else (len(answers[answers.answer_1 == "B"]) / n)
-        instruments_on = (
-            None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
-        )
+        instruments_on = None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
         agreement = None if n == 0 else max(a, b)
         return {
             "num_answers": n,
@@ -197,9 +186,9 @@ def _(surveyAnswers):
 
 @app.cell
 def _(get_perc_values, pd, surveyQuestions):
-    surveyQuestions[
-        ["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]
-    ] = surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
+    surveyQuestions[["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]] = (
+        surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
+    )
     surveyQuestions.dropna(axis=0, inplace=True)
     surveyQuestions
     return
@@ -251,7 +240,6 @@ def _(List, StandardScaler, mo, pd, surveyQuestions):
             else:
                 return 0.5  # Uncertainty
 
-
     def get_local_feature_distances(
         question,
         feature_df: pd.DataFrame,
@@ -261,7 +249,6 @@ def _(List, StandardScaler, mo, pd, surveyQuestions):
         a_1 = feature_df.loc[question["A"]][feature_key]
         a_2 = feature_df.loc[question["B"]][feature_key]
         return get_distance(x, a_1, a_2)
-
 
     def get_all_distances(
         feature_df: pd.DataFrame,
@@ -281,22 +268,12 @@ def _(List, StandardScaler, mo, pd, surveyQuestions):
         agree_df = pd.DataFrame(columns, index=surveyQuestions.index)
         return agree_df
 
-
-    def get_mean_values(
-        agreement_df: pd.DataFrame, feature_list=None, top_x: int = None
-    ) -> dict:
-        f_iterator = (
-            feature_list if feature_list is not None else agreement_df.columns
-        )
+    def get_mean_values(agreement_df: pd.DataFrame, feature_list=None, top_x: int = None) -> dict:
+        f_iterator = feature_list if feature_list is not None else agreement_df.columns
         mean_values = {feat: agreement_df[feat].mean() for feat in f_iterator}
         if top_x is not None:
-            mean_values = dict(
-                sorted(
-                    mean_values.items(), key=lambda item: item[1], reverse=True
-                )[:top_x]
-            )
+            mean_values = dict(sorted(mean_values.items(), key=lambda item: item[1], reverse=True)[:top_x])
         return mean_values
-
 
     def scale_df(feature_df, columns=None) -> pd.DataFrame:
         scaler = StandardScaler()
@@ -318,13 +295,7 @@ def _(mo):
 
 @app.cell
 def _():
-    from scipy.spatial.distance import (
-        euclidean,
-        chebyshev,
-        cosine,
-        minkowski,
-        canberra,
-    )
+    from scipy.spatial.distance import canberra, chebyshev, cosine, euclidean, minkowski
 
     return canberra, chebyshev, cosine, euclidean, minkowski
 
@@ -341,7 +312,6 @@ def _(
     surveyQuestions,
 ):
     minkowski_p = 4
-
 
     def get_distance_row(question, feature_df, distance_algorithm) -> pd.Series:
         x = feature_df.loc[question["X"]].values
@@ -363,14 +333,11 @@ def _(
             dist_a_1 = canberra(x, a_1)
             dist_a_2 = canberra(x, a_2)
         else:
-            raise NotImplementedError(
-                f"Distance Measure {distance_algorithm} is not implemented yet!"
-            )
+            raise NotImplementedError(f"Distance Measure {distance_algorithm} is not implemented yet!")
         # -1 to 1: -1 => A2 is more similar to X, 1 => A1 is more similar to X
         norm_dist = (dist_a_2 - dist_a_1) / (dist_a_1 + dist_a_2)
         # 0 to 1: 0 => A2 is more similar to X, 1 => A1 is more similar to X
         return (norm_dist + 1) / 2
-
 
     distance_algorithms = [
         "euclidean",
@@ -379,7 +346,6 @@ def _(
         "minkowski",
         "canberra",
     ]
-
 
     def get_global_scores(
         feature_df: pd.DataFrame,
@@ -393,9 +359,7 @@ def _(
         - canberra: normalizes per-dimension, amplifies subtle differences in low-valued features
         """
         gda_df = pd.DataFrame()
-        for d in mo.status.progress_bar(
-            distance_algorithms, title="Calculating GDAs", remove_on_exit=True
-        ):
+        for d in mo.status.progress_bar(distance_algorithms, title="Calculating GDAs", remove_on_exit=True):
             gda_df[f"distance_{d}"] = surveyQuestions.apply(
                 lambda x: get_distance_row(x, feature_df, d),
                 axis=1,
@@ -457,9 +421,9 @@ def _(get_all_distances, hl_features, scale_df, track_df):
 @app.cell
 def _(hl_distances, plot_correlation_bar, surveyQuestions):
     plot_correlation_bar(
-        title="High Level Feature Correlations",
-        feature_df=hl_distances,
-        human_baseline=surveyQuestions["A_perc"],
+        title="High Level Feature Correlations (Randomized)",
+        feature_df=hl_distances[surveyQuestions.randomized],
+        human_baseline=surveyQuestions[surveyQuestions.randomized]["A_perc"],
         top_x=10,
     )
     return
@@ -477,28 +441,8 @@ def _(
         title="Gender Feature Correlation",
         x=surveyQuestions["A_perc"],
         y=hl_distances["pred_p_male"],
-        save_path=os.path.join(
-            PLOT_SAVE_DIR, "questions_pred_gender_correlation.png"
-        ),
-    )
-    return
-
-
-@app.cell
-def _(
-    PLOT_SAVE_DIR,
-    hl_distances,
-    os,
-    plot_correlation_scatter,
-    surveyQuestions,
-):
-    plot_correlation_scatter(
-        title="Age Feature Correlation",
-        x=surveyQuestions["A_perc"],
-        y=hl_distances["pred_age"],
-        save_path=os.path.join(
-            PLOT_SAVE_DIR, "questions_pred_age_correlation.png"
-        ),
+        save_path=os.path.join(PLOT_SAVE_DIR, "questions_pred_gender_correlation.png"),
+        legend_loc="lower right",
     )
     return
 
@@ -529,9 +473,7 @@ def _():
 
 @app.cell
 def _(MelSpectrogramEncoder):
-    encoder = MelSpectrogramEncoder.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb-mel-spec"
-    )
+    encoder = MelSpectrogramEncoder.from_hparams(source="speechbrain/spkrec-ecapa-voxceleb-mel-spec")
     SAMPLE_RATE = 16_000
     return SAMPLE_RATE, encoder
 
@@ -548,9 +490,7 @@ def _(SAMPLE_RATE, get_trimmed_audio):
 @app.cell
 def _(encoder, get_embedding, np, pd, scale_df, track_df):
     embedding_df = pd.DataFrame(
-        np.stack(
-            track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values
-        ),
+        np.stack(track_df.song_path.apply(lambda x: get_embedding(x, encoder)).values),
         columns=[f"emb_{e}" for e in range(192)],
         index=track_df.index,
     )
@@ -569,7 +509,29 @@ def _(embedding_df, get_global_scores):
 @app.cell
 def _(embedding_gda_df, plot_correlation_bar, surveyQuestions):
     plot_correlation_bar(
-        title="Ecapa Embeddings Correlations",
+        title="Ecapa Embeddings Correlations (Randomized)",
+        feature_df=embedding_gda_df[surveyQuestions.randomized],
+        human_baseline=surveyQuestions[surveyQuestions.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(embedding_gda_df, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="Ecapa Embeddings Correlations (Max Entropy)",
+        feature_df=embedding_gda_df[~surveyQuestions.randomized],
+        human_baseline=surveyQuestions[~surveyQuestions.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(embedding_gda_df, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="Ecapa Embeddings Correlations (All)",
         feature_df=embedding_gda_df,
         human_baseline=surveyQuestions["A_perc"],
         top_x=10,
@@ -582,7 +544,8 @@ def _(embedding_gda_df, plot_correlation_scatter, surveyQuestions):
     plot_correlation_scatter(
         title="Ecapa Embeddings Correlation",
         x=surveyQuestions["A_perc"],
-        y=embedding_gda_df["distance_chebyshev"],
+        y=embedding_gda_df["distance_cosine"],
+        legend_loc="lower right",
     )
     return
 
@@ -647,9 +610,7 @@ def _(mo):
 def _(MODEL_FOLDER, load_singer_identity_model, os):
     singer_ID_model_path = os.path.join(MODEL_FOLDER, "singer-identity", "byol")
     sID_SAMPLE_RATE = 44100
-    singer_ID_model = load_singer_identity_model(
-        singer_ID_model_path, input_sr=sID_SAMPLE_RATE
-    )
+    singer_ID_model = load_singer_identity_model(singer_ID_model_path, input_sr=sID_SAMPLE_RATE)
     singer_ID_model.eval()
     return sID_SAMPLE_RATE, singer_ID_model
 
@@ -675,11 +636,7 @@ def _(
 ):
     with torch.no_grad():
         sID_embedding_df = pd.DataFrame(
-            np.stack(
-                track_df.song_path.apply(
-                    lambda x: get_singer_ID_embedding(x, singer_ID_model)
-                ).values
-            ),
+            np.stack(track_df.song_path.apply(lambda x: get_singer_ID_embedding(x, singer_ID_model)).values),
             columns=[f"emb_{e}" for e in range(1000)],
             index=track_df.index,
         )
@@ -697,7 +654,29 @@ def _(get_global_scores, sID_embedding_df):
 @app.cell
 def _(plot_correlation_bar, sID_embedding_gda_df, surveyQuestions):
     plot_correlation_bar(
-        title="Singer ID Embeddings Correlations",
+        title="Singer ID Embeddings Correlations (Randomized)",
+        feature_df=sID_embedding_gda_df[surveyQuestions.randomized],
+        human_baseline=surveyQuestions[surveyQuestions.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(plot_correlation_bar, sID_embedding_gda_df, surveyQuestions):
+    plot_correlation_bar(
+        title="Singer ID Embeddings Correlations (Max Entropy)",
+        feature_df=sID_embedding_gda_df[~surveyQuestions.randomized],
+        human_baseline=surveyQuestions[~surveyQuestions.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(plot_correlation_bar, sID_embedding_gda_df, surveyQuestions):
+    plot_correlation_bar(
+        title="Singer ID Embeddings Correlations (All)",
         feature_df=sID_embedding_gda_df,
         human_baseline=surveyQuestions["A_perc"],
         top_x=10,
@@ -747,9 +726,7 @@ def _(SAMPLE_RATE, get_trimmed_audio):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    gemaps_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "survey_2_gemaps.npy"
-    )
+    gemaps_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "survey_2_gemaps.npy")
     return (gemaps_feature_path,)
 
 
@@ -794,9 +771,7 @@ def _(mo):
 
 @app.cell
 def _(gemaps_features_df, get_all_distances):
-    gemaps_distances = get_all_distances(
-        gemaps_features_df, gemaps_features_df.columns
-    )
+    gemaps_distances = get_all_distances(gemaps_features_df, gemaps_features_df.columns)
     gemaps_distances
     return (gemaps_distances,)
 
@@ -804,11 +779,39 @@ def _(gemaps_features_df, get_all_distances):
 @app.cell
 def _(gemaps_distances, plot_correlation_bar, surveyQuestions):
     plot_correlation_bar(
-        title="GeMAPS Feature Correlations",
+        title="GeMAPS Feature Correlations (Randomized)",
+        feature_df=gemaps_distances[surveyQuestions.randomized],
+        human_baseline=surveyQuestions[surveyQuestions.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(gemaps_distances, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="GeMAPS Feature Correlations  (Max Entropy)",
+        feature_df=gemaps_distances[~surveyQuestions.randomized],
+        human_baseline=surveyQuestions[~surveyQuestions.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(gemaps_distances, plot_correlation_bar, surveyQuestions):
+    plot_correlation_bar(
+        title="GeMAPS Feature Correlations (All)",
         feature_df=gemaps_distances,
         human_baseline=surveyQuestions["A_perc"],
         top_x=10,
     )
+    return
+
+
+@app.cell
+def _(smile_gemaps):
+    smile_gemaps.feature_names
     return
 
 
@@ -821,11 +824,11 @@ def _(
     surveyQuestions,
 ):
     plot_correlation_scatter(
-        title="GeMAPS F0 80 Percentile Correlation",
+        title="GeMAPS F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope Correlation",
         x=surveyQuestions["A_perc"],
-        y=gemaps_distances["F0semitoneFrom27.5Hz_sma3nz_percentile80.0"],
+        y=gemaps_distances["F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope"],
         legend_loc="lower right",
-        save_path=os.path.join(PLOT_SAVE_DIR, "questions_gemaps_F0_perc80.0.png"),
+        save_path=os.path.join(PLOT_SAVE_DIR, "questions_F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope.png"),
     )
     return
 
@@ -893,9 +896,7 @@ def _(opensmile):
 
 @app.cell
 def _(DATASET_FOLDER, os):
-    compare_feature_path = os.path.join(
-        DATASET_FOLDER, "fma_large_feature_sets", "survey_2_compare.npy"
-    )
+    compare_feature_path = os.path.join(DATASET_FOLDER, "fma_large_feature_sets", "survey_2_compare.npy")
     return (compare_feature_path,)
 
 

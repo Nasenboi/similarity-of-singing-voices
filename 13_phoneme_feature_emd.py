@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.8"
+__generated_with = "0.23.9"
 app = marimo.App(width="full")
 
 
@@ -29,15 +29,13 @@ def _():
         CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        PLOT_FOLDER,
         STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
-    PLOT_FOLDER
     )
-    from src.phoneme_extractor.phoneme_extractor import (
-        load_data as load_phoneme_data,
-    )
-    from src.plotting import plot_scores
+    from src.phoneme_extractor.phoneme_extractor import load_data as load_phoneme_data
+    from src.statistics.plotting import plot_scores
 
     return (
         CSV_FOLDER,
@@ -56,7 +54,7 @@ def _():
 
 @app.cell
 def _(PLOT_FOLDER, os):
-    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_1")
+    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
     return (PLOT_SAVE_DIR,)
 
 
@@ -114,8 +112,7 @@ def _(CSV_FOLDER, os, pd, phoneme_df):
         os.path.join(
             CSV_FOLDER,
             "LargeDataset",
-            "additional_features",
-            "high_level_features.csv",
+            "dataset_survey_2_final.csv",
         ),
         index_col="track_id",
     )
@@ -128,34 +125,29 @@ def _(CSV_FOLDER, os, pd, phoneme_df):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
+
+
+@app.cell
+def _(surveyQuestions):
+    surveyQuestions["randomized"] = surveyQuestions.questionnaireID < 3
+    surveyQuestions
+    return
 
 
 @app.cell
@@ -174,9 +166,8 @@ def _(pd, phoneme_df, surveyAnswers_, surveyQuestions):
             }
         )
 
-
-    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = (
-        surveyAnswers_.apply(getTrackIdsForAnswer, axis=1)
+    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = surveyAnswers_.apply(
+        getTrackIdsForAnswer, axis=1
     )
     survey_answers_mask = (
         (~surveyAnswers_.skipped)
@@ -236,12 +227,7 @@ def _(mo, pd, phoneme_df, surveyAnswers, wasserstein_distance_nd):
             total=len(surveyAnswers),
             remove_on_exit=True,
         )
-        result_df = pd.DataFrame(
-            {
-                idx: get_local_feature_emd_distance(row, feature_df)
-                for idx, row in rows
-            }
-        ).T
+        result_df = pd.DataFrame({idx: get_local_feature_emd_distance(row, feature_df) for idx, row in rows}).T
         result_df.index.name = "survey_idx"
         return result_df
 
@@ -276,9 +262,7 @@ def _(SAMPLE_RATE):
 
 @app.cell
 def _(SAMPLE_RATE, librosa):
-    def get_mfcc_stats(
-        y, n_mfcc=10, hop_length=int(SAMPLE_RATE * 0.01), fmin=50, fmax=8_000
-    ):
+    def get_mfcc_stats(y, n_mfcc=10, hop_length=int(SAMPLE_RATE * 0.01), fmin=50, fmax=8_000):
         """Calculates mel-frequency cepstral coefficients, sampled at SAMPLE_RATE (16 kHz)"""
         n_fft = min(2048, len(y))
         mfccs = librosa.feature.mfcc(
@@ -311,9 +295,7 @@ def _(
     mfcc_values = np.stack(
         [
             get_mfcc_stats(x, **mfcc_config)
-            for x in mo.status.progress_bar(
-                phonemes, title="Calculating MFCCs...", remove_on_exit=True
-            )
+            for x in mo.status.progress_bar(phonemes, title="Calculating MFCCs...", remove_on_exit=True)
         ]
     )
 
@@ -380,9 +362,7 @@ def _(
     mel_values = np.stack(
         [
             get_mel_frequencies(x, **mel_config)
-            for x in mo.status.progress_bar(
-                phonemes, title="Calculating Mels...", remove_on_exit=True
-            )
+            for x in mo.status.progress_bar(phonemes, title="Calculating Mels...", remove_on_exit=True)
         ]
     )
 
@@ -412,9 +392,7 @@ def _(mo):
 
 @app.cell
 def _(surveyAnswers):
-    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(
-        surveyAnswers
-    )
+    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(surveyAnswers)
     RANDOM_CHANCE
     return (RANDOM_CHANCE,)
 

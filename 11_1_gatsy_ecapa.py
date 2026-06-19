@@ -28,12 +28,12 @@ def _():
         CSV_FOLDER,
         DATASET_FOLDER,
         MODEL_FOLDER,
+        PLOT_FOLDER,
         STEMS_FOLDER,
         TRACKS_PATH,
         UVR_MODEL_PATH,
-        PLOT_FOLDER,
     )
-    from src.plotting import plot_model_train_results
+    from src.statistics.plotting import plot_model_train_results
 
     return (
         CSV_FOLDER,
@@ -92,31 +92,19 @@ def _(CSV_FOLDER, os, pd):
 def _(DATASET_FOLDER, os, pd):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
 
-
     def parse_js_date(series):
         cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
         return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
 
-
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers_ = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
+    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
+    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
+    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
     songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
     participants[participants.surveyCompleted]
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
+    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants[participants.surveyCompleted]
     surveyAnswers_
     return surveyAnswers_, surveyQuestions
@@ -124,9 +112,7 @@ def _(DATASET_FOLDER, os, pd):
 
 @app.cell
 def _(full_dataset, track_df):
-    track_df["artist_id"] = track_df.apply(
-        lambda x: full_dataset.loc[x.name].artist_id, axis=1
-    )
+    track_df["artist_id"] = track_df.apply(lambda x: full_dataset.loc[x.name].artist_id, axis=1)
     track_df
     return
 
@@ -163,7 +149,6 @@ def _(pd, surveyAnswers_, surveyQuestions, track_df):
                 "skipped": question["skip"],
             }
         )
-
 
     surveyAnswers_[
         [
@@ -262,7 +247,6 @@ def _(SAMPLE_RATE, encoder, get_trimmed_audio, np, track_df):
         trimmed_audio = get_trimmed_audio(song_path, sr=SAMPLE_RATE)
         return encoder.encode_waveform(trimmed_audio).cpu().numpy().squeeze()
 
-
     x = np.stack(track_df.song_path.apply(get_embedding).values)
     track_df["edge_id"] = range(len(track_df))
     return (x,)
@@ -278,16 +262,10 @@ def _(
     track_df,
     train_test_split,
 ):
-    train_df, test_df = train_test_split(
-        surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE
-    )
+    train_df, test_df = train_test_split(surveyAnswers, train_size=TRAIN_SIZE, random_state=RANDOM_STATE)
 
-    train_dataset = TripletDataset(
-        triplet_df=train_df, node_df=track_df, node_id_key="edge_id"
-    )
-    test_dataset = TripletDataset(
-        triplet_df=test_df, node_df=track_df, node_id_key="edge_id"
-    )
+    train_dataset = TripletDataset(triplet_df=train_df, node_df=track_df, node_id_key="edge_id")
+    test_dataset = TripletDataset(triplet_df=test_df, node_df=track_df, node_id_key="edge_id")
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
@@ -333,9 +311,7 @@ def _(GATSY):
 
 @app.cell
 def _(MODEL_FOLDER, os, torch):
-    pt_model_path = os.path.join(
-        MODEL_FOLDER, "GATSY", "pretrained", "GAT_7_3_1_0.001_0.0_triplet_False.pt"
-    )
+    pt_model_path = os.path.join(MODEL_FOLDER, "GATSY", "pretrained", "GAT_7_3_1_0.001_0.0_triplet_False.pt")
 
     pt_checkpoint = torch.load(pt_model_path, weights_only=False)
     state_dict = pt_checkpoint.state_dict()
@@ -416,9 +392,7 @@ def _(DEVICE, MODEL_FOLDER, Trainer, model, os, test_loader, train_loader, x):
     }
     trainer = Trainer(**trainer_params)
     trainer.train()
-    loss_reduction = -1 * (
-        trainer.best_test_loss - trainer.checkpoint["loss_test"][0]
-    )
+    loss_reduction = -1 * (trainer.best_test_loss - trainer.checkpoint["loss_test"][0])
     loss_recuction_perc = 100 * loss_reduction / trainer.checkpoint["loss_test"][0]
 
     print(f"Loss reduction {loss_reduction} ({loss_recuction_perc:.2f}%)")
@@ -433,7 +407,7 @@ def _(PLOT_SAVE_DIR, os, plot_model_train_results, trainer):
         train_accuracy=trainer.checkpoint["accuracy_score"],
         test_accuracy=trainer.checkpoint["pred_accuracy"],
         model_name=trainer.model_name(".pt", ""),
-        save_path=os.path.join(PLOT_SAVE_DIR, f"{trainer.model_name}_train.png")
+        save_path=os.path.join(PLOT_SAVE_DIR, f"{trainer.model_name}_train.png"),
     )
     return
 
@@ -478,7 +452,7 @@ def _(
         train_accuracy=best_model["accuracy_score"],
         test_accuracy=best_model["pred_accuracy"],
         model_name=best_model_name.replace(".pt", ""),
-        save_path=os.path.join(PLOT_SAVE_DIR, "best_gatsy_ecapa_model_train.png")
+        save_path=os.path.join(PLOT_SAVE_DIR, "best_gatsy_ecapa_model_train.png"),
     )
     return
 

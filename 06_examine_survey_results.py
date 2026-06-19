@@ -36,23 +36,21 @@ def _():
         TRACKS_PATH,
         UVR_MODEL_PATH,
     )
+    from src.survey_dataset_helpers import load_survey_data
 
-    return DATASET_FOLDER, alt, mo, os, pd
+    return DATASET_FOLDER, alt, load_survey_data, mo, os
 
 
 @app.cell
 def _(DATASET_FOLDER, os):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
-    return (SURVEY_FOLDER,)
-
-
-@app.cell
-def _(pd):
-    def parse_js_date(series):
-        cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
-        return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
-
-    return (parse_js_date,)
+    CSV_PATHS = {
+        "participants": os.path.join(SURVEY_FOLDER, "participants.csv"),
+        "songs":  os.path.join(SURVEY_FOLDER, "songs.csv"),
+        "answers": os.path.join(SURVEY_FOLDER, "answers_df.csv"),
+        "questions":  os.path.join(SURVEY_FOLDER, "questions_df.csv"),
+    }
+    return (CSV_PATHS,)
 
 
 @app.cell
@@ -64,48 +62,22 @@ def _(mo):
 
 
 @app.cell
-def _(SURVEY_FOLDER, os, parse_js_date, pd):
-    participants = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id"
-    )
-    surveyQuestions = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id"
-    )
-    surveyAnswers = pd.read_csv(
-        os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id"
-    )
-    songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
-    participants["editDate"] = parse_js_date(participants["editDate"])
-    participants["createDate"] = parse_js_date(participants["createDate"])
-    participants[participants.surveyCompleted]
-    return participants, surveyAnswers, surveyQuestions
+def _(CSV_PATHS, load_survey_data):
+    SURVEY_DATA = load_survey_data(CSV_PATHS)
+    questions_df = SURVEY_DATA["questions_df"]
+    answers_df = SURVEY_DATA["answers_df"]
+    participants_df =SURVEY_DATA["participants_df"]
+    songs_df= SURVEY_DATA["songs_df"]
+    human_agreement= SURVEY_DATA["human_agreement"]
+    answer_a_b_ratio= SURVEY_DATA["answer_a_b_ratio"]
+    return answers_df, participants_df, questions_df
 
 
 @app.cell
-def _(surveyQuestions):
-    # There should be no duplicate triplets in all surveyQuestions
-    duplicates = surveyQuestions.duplicated(subset=["X", "A", "B"], keep=False)
-    print(surveyQuestions[duplicates])
-    return
-
-
-@app.cell
-def _(surveyQuestions):
-    # tag randomized questions
-    surveyQuestions["randomized"] = surveyQuestions.questionnaireID < 3
-    surveyQuestions
-    return
-
-
-@app.cell
-def _(participants):
-    participants["completionTime"] = (
-        participants["editDate"] - participants["createDate"]
-    )
-    participants["completionMinutes"] = (
-        participants["completionTime"].dt.total_seconds() / 60
-    )
-    participants[participants.surveyCompleted]
+def _(questions_df):
+    # There should be no duplicate triplets in all questions_df
+    duplicates = questions_df.duplicated(subset=["X", "A", "B"], keep=False)
+    print(questions_df[duplicates])
     return
 
 
@@ -118,51 +90,51 @@ def _(mo):
 
 
 @app.cell
-def _(participants, surveyAnswers, surveyQuestions):
+def _(answers_df, participants_df, questions_df):
     ab_ratio_a = (
         100
-        * len(surveyAnswers[surveyAnswers.answer_1 == "A"])
-        / len(surveyAnswers)
+        * len(answers_df[answers_df.answer_1 == "A"])
+        / len(answers_df)
     )
     ab_ratio_b = (
         100
-        * len(surveyAnswers[surveyAnswers.answer_1 == "B"])
-        / len(surveyAnswers)
+        * len(answers_df[answers_df.answer_1 == "B"])
+        / len(answers_df)
     )
 
     instruments_on_yes = (
         100
-        * len(surveyAnswers[surveyAnswers.backgroundMusic])
-        / len(surveyAnswers)
+        * len(answers_df[answers_df.backgroundMusic])
+        / len(answers_df)
     )
     instruments_on_no = (
         100
-        * len(surveyAnswers[~surveyAnswers.backgroundMusic])
-        / len(surveyAnswers)
+        * len(answers_df[~answers_df.backgroundMusic])
+        / len(answers_df)
     )
 
     print(f"""
-    Total number of participants: {len(participants)}
-    Number of completed surveys:  {len(participants[participants.surveyCompleted])}
+    Total number of participants: {len(participants_df)}
+    Number of completed surveys:  {len(participants_df[participants_df.surveyCompleted])}
     Number of incomple surveys:   {
-        len(participants[~participants.surveyCompleted])
+        len(participants_df[~participants_df.surveyCompleted])
     }
 
     Median completion time: {
-        round(participants.completionMinutes.median())
+        round(participants_df.completionMinutes.median())
     } minutes
 
-    Total number of questions: {len(surveyQuestions)} 
+    Total number of questions: {len(questions_df)} 
     Number of questions with no answers: {
-        surveyQuestions[
-            ~surveyQuestions.index.isin(surveyAnswers["questionID"])
+        questions_df[
+            ~questions_df.index.isin(answers_df["questionID"])
         ].shape[0]
     }
     Number of questions with multiple answers: {
-        surveyAnswers.groupby("questionID").size().loc[lambda x: x > 1].shape[0]
+        answers_df.groupby("questionID").size().loc[lambda x: x > 1].shape[0]
     }
 
-    Total number of answers: {len(surveyAnswers)}
+    Total number of answers: {len(answers_df)}
     Answer A/B: {ab_ratio_a:.1f}% A; {ab_ratio_b:.1f}% B
     Instruments on:   {instruments_on_yes:.1f}% Yes; {instruments_on_no:.1f}% No
     """)
@@ -170,12 +142,12 @@ def _(participants, surveyAnswers, surveyQuestions):
 
 
 @app.cell
-def _(alt, participants):
+def _(alt, participants_df):
     _chart = (
         alt.Chart(
-            participants[
-                (participants.surveyCompleted)
-                & (participants.completionMinutes <= 100)
+            participants_df[
+                (participants_df.surveyCompleted)
+                & (participants_df.completionMinutes <= 100)
             ][["completionMinutes"]]
         )  # <-- replace with data
         .mark_bar()
@@ -211,12 +183,6 @@ def _(alt, participants):
 
 
 @app.cell
-def _(surveyAnswers):
-    surveyAnswers
-    return
-
-
-@app.cell
 def _(mo):
     mo.md(r"""
     ## Other Statistics
@@ -225,77 +191,87 @@ def _(mo):
 
 
 @app.cell
-def _(surveyAnswers):
-    def get_perc_values(questionID: str):
-        answers = surveyAnswers[surveyAnswers.questionID == questionID]
-        n = len(answers)
-        a = None if n == 0 else (len(answers[answers.answer_1 == "A"]) / n)
-        b = None if n == 0 else (len(answers[answers.answer_1 == "B"]) / n)
-        instruments_on = (
-            None if n == 0 else (len(answers[answers.backgroundMusic]) / n)
-        )
-        agreement = None if n == 0 else max(a, b)
-        return {
-            "num_answers": n,
-            "A_perc": a,
-            "B_perc": b,
-            "agreement": agreement,
-            "instruments_on": instruments_on,
-        }
+def _(questions_df):
+    # agreement for multiple answers per question:
+    multi_answer_mask = questions_df.num_answers > 1
+    pe = 0.5
+    po = questions_df[multi_answer_mask].agreement.mean()
 
-    return (get_perc_values,)
+    kappa = (po - pe) / (1 - pe)
+    print(f"""
+    Number of questions with multiple answers: {len(questions_df[multi_answer_mask])}
+    Answer agreement (po): {100 * po:.1f}%
+    Chance agreement (pe): {100 * pe:.1f}
+    Cohen's Kappa:    {kappa:.3f}
+    """)
+    return multi_answer_mask, pe, po
 
 
-@app.cell
-def _(get_perc_values, pd, surveyQuestions):
-    surveyQuestions[
-        ["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]
-    ] = surveyQuestions.index.to_series().apply(get_perc_values).apply(pd.Series)
-    surveyQuestions
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Survey Types
+    """)
     return
 
 
 @app.cell
-def _(surveyQuestions):
-    # agreement for multiple answers per question:
-    multi_answer_mask = surveyQuestions.num_answers > 1
-    pe = 0.5
-    po = surveyQuestions[multi_answer_mask].agreement.mean()
+def _(multi_answer_mask, pe, po, questions_df):
+    # agreement for max entropy questions:
+    randomized_mask = questions_df["randomized"]
+    po_max_kappa = questions_df[multi_answer_mask & (~randomized_mask)].agreement.mean()
 
-    kappa = (po - pe) / (1 - pe)
+    kappa_max_ent = (po - pe) / (1 - pe)
     print(f"""
-    Number of questions with multiple answers: {len(surveyQuestions[multi_answer_mask])}
-    Answer agreement (po): {100 * po:.1f}%
-    Chance agreement (pe): 50%
-    Cohen's Kappa:    {kappa:.3f}
+    Number of questions of max entropy type: {len(questions_df[multi_answer_mask & (~randomized_mask)])}
+    Answer agreement (po): {100 * po_max_kappa:.1f}%
+    Chance agreement (pe): {100 * pe:.1f}
+    Cohen's Kappa:    {kappa_max_ent:.3f}
     """)
-    return multi_answer_mask, pe
+    return (randomized_mask,)
 
 
 @app.cell
-def _(multi_answer_mask, surveyQuestions):
-    instrument_mask1 = surveyQuestions.instruments_on > 0
-    instrument_mask2 = surveyQuestions.instruments_on < 1
-    surveyQuestions[instrument_mask1 & instrument_mask2 & multi_answer_mask]
+def _(multi_answer_mask, pe, po, questions_df, randomized_mask):
+    # agreement for max entropy questions:
+    po_rand = questions_df[multi_answer_mask & randomized_mask].agreement.mean()
+
+    kappa_rand = (po - pe) / (1 - pe)
+    print(f"""
+    Number of questions of max entropy type: {len(questions_df[multi_answer_mask & randomized_mask])}
+    Answer agreement (po): {100 * po_rand:.1f}%
+    Chance agreement (pe): {100 * pe:.1f}
+    Cohen's Kappa:    {kappa_rand:.3f}
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Instruments
+    """)
+    return
+
+
+@app.cell
+def _(multi_answer_mask, questions_df):
+    instrument_mask1 = questions_df.instruments_on > 0
+    instrument_mask2 = questions_df.instruments_on < 1
+    questions_df[instrument_mask1 & instrument_mask2 & multi_answer_mask]
     return instrument_mask1, instrument_mask2
 
 
 @app.cell
-def _(
-    instrument_mask1,
-    instrument_mask2,
-    multi_answer_mask,
-    pe,
-    surveyQuestions,
-):
-    po_i_differ = surveyQuestions[
+def _(instrument_mask1, instrument_mask2, multi_answer_mask, pe, questions_df):
+    po_i_differ = questions_df[
         instrument_mask1 & instrument_mask2 & multi_answer_mask
     ].agreement.mean()
 
     kappa_i_differ = (po_i_differ - pe) / (1 - pe)
     print(f"""
     Different Instrument Settings:
-    Number of multiple answers per question with different instrument settings: {len(surveyQuestions[instrument_mask1 & instrument_mask2 & multi_answer_mask])}
+    Number of multiple answers per question with different instrument settings: {len(questions_df[instrument_mask1 & instrument_mask2 & multi_answer_mask])}
     Answer agreement (po): {100 * po_i_differ:.1f}%
     Cohen's Kappa:    {kappa_i_differ:.3f}
     """)
@@ -303,21 +279,15 @@ def _(
 
 
 @app.cell
-def _(
-    instrument_mask1,
-    instrument_mask2,
-    multi_answer_mask,
-    pe,
-    surveyQuestions,
-):
-    po_i_same = surveyQuestions[
+def _(instrument_mask1, instrument_mask2, multi_answer_mask, pe, questions_df):
+    po_i_same = questions_df[
         ~(instrument_mask1 & instrument_mask2) & multi_answer_mask
     ].agreement.mean()
 
     kappa_i_same = (po_i_same - pe) / (1 - pe)
     print(f"""
     Same Instrument Settings:
-    Number of multiple answers per question with same instrument settings: {len(surveyQuestions[~(instrument_mask1 & instrument_mask2) & multi_answer_mask])}
+    Number of multiple answers per question with same instrument settings: {len(questions_df[~(instrument_mask1 & instrument_mask2) & multi_answer_mask])}
     Answer agreement (po): {100 * po_i_same:.1f}%
     Cohen's Kappa:    {kappa_i_same:.3f}
     """)
