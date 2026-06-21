@@ -4,6 +4,7 @@ import marimo as mo
 import numpy as np
 import pandas as pd
 from scipy.spatial.distance import canberra, chebyshev, cosine, euclidean, minkowski
+from scipy.stats import f_oneway
 from sklearn.preprocessing import StandardScaler
 
 # -- consts --
@@ -193,3 +194,12 @@ def get_global_distance_scores(feature_df: pd.DataFrame, questions_df: pd.DataFr
             axis=1,
         )
     return gda_df
+
+
+def get_anova_values(*args) -> tuple:
+    f_statistic, p_value = f_oneway(*args)
+    group_sizes = {str(i): len(g) for i, g in enumerate(args)}
+    print("Group sizes:\n", group_sizes)
+    print(f"F-statistic: {f_statistic:0.3f}")
+    print(f"P-value: {p_value:0.3f}")
+    return f_statistic, p_value
