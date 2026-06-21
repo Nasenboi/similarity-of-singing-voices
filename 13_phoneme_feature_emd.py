@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.9"
+__generated_with = "0.23.10"
 app = marimo.App(width="full")
 
 
@@ -23,6 +23,7 @@ def _():
     import numpy as np
     import pandas as pd
     import torch
+    from scipy.stats import wasserstein_distance_nd
 
     from src.globals import (
         AUDIO_FOLDER,
@@ -34,28 +35,59 @@ def _():
         TRACKS_PATH,
         UVR_MODEL_PATH,
     )
-    from src.phoneme_extractor.phoneme_extractor import load_data as load_phoneme_data
+    from src.phoneme_extractor.phoneme_extractor import (
+        load_data as load_phoneme_data,
+    )
     from src.statistics.plotting import plot_scores
+    from src.survey_dataset_helpers import load_survey_data
+    from src.statistics.feature_correlation import (
+        scale_df,
+        get_all_distance_differences,
+    )
+    from src.statistics.plotting import (
+        plot_correlation_bar,
+        plot_correlation_scatter,
+    )
 
     return (
         CSV_FOLDER,
         DATASET_FOLDER,
         PLOT_FOLDER,
+        get_all_distance_differences,
         librosa,
         load_phoneme_data,
+        load_survey_data,
         mo,
         np,
         os,
         pd,
-        plot_scores,
+        plot_correlation_bar,
+        plot_correlation_scatter,
+        scale_df,
         torch,
+        wasserstein_distance_nd,
     )
 
 
 @app.cell
-def _(PLOT_FOLDER, os):
+def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
     PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
-    return (PLOT_SAVE_DIR,)
+
+
+    def plot_feature_correlation_scatter(
+        feature_name: str, feature, target_feature=questions_df["A_perc"]
+    ):
+        plot_correlation_scatter(
+            title=f"{feature_name} Feature Correlation",
+            x=target_feature,
+            y=feature,
+            save_path=os.path.join(
+                PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"
+            ),
+            legend_loc="lower right",
+        )
+
+    return (plot_feature_correlation_scatter,)
 
 
 @app.cell(hide_code=True)
@@ -82,102 +114,53 @@ def _():
 
 
 @app.cell
+def _(CSV_FOLDER, DATASET_FOLDER, load_survey_data, os):
+    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
+    CSV_PATHS = {
+        "participants": os.path.join(SURVEY_FOLDER, "participants.csv"),
+        "songs": os.path.join(SURVEY_FOLDER, "songs.csv"),
+        "answers": os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"),
+        "questions": os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"),
+        "tracks": os.path.join(
+            CSV_FOLDER,
+            "LargeDataset",
+            "dataset_survey_2_final.csv",
+        ),
+    }
+    SURVEY_DATA = load_survey_data(CSV_PATHS)
+    questions_df = SURVEY_DATA["questions_df"]
+    answers_df = SURVEY_DATA["answers_df"]
+    participants_df = SURVEY_DATA["participants_df"]
+    songs_df = SURVEY_DATA["songs_df"]
+    human_agreement = SURVEY_DATA["human_agreement"]
+    answer_a_b_ratio = SURVEY_DATA["answer_a_b_ratio"]
+    track_df = SURVEY_DATA["track_df"]
+    return questions_df, songs_df, track_df
+
+
+@app.cell
 def _(
     MIN_PHONEME_CONFIDENCE,
     MIN_PHONEME_DURATION_MS,
     load_phoneme_data,
     phoneme_save_path,
+    songs_df,
 ):
     phoneme_df, phonemes = load_phoneme_data(phoneme_save_path)
-    phoneme_df = phoneme_df.rename(columns={"file_id": "track_id"})
+    phoneme_df = phoneme_df.rename(columns={"file_id": "trackID"})
 
     phoneme_mask = (phoneme_df.duration_ms >= MIN_PHONEME_DURATION_MS) & (
         phoneme_df.confidence >= MIN_PHONEME_CONFIDENCE
     )
     phonemes = phonemes[phoneme_mask]
     phoneme_df = phoneme_df[phoneme_mask]
-    phoneme_df
+
+    trackID_mask = phoneme_df.trackID.isin(songs_df.trackID.unique())
+    phoneme_df = phoneme_df[trackID_mask]
+    phonemes = phonemes[trackID_mask]
+
+    phoneme_df.groupby("trackID").size().agg(["min", "mean"])
     return phoneme_df, phonemes
-
-
-@app.cell
-def _(phoneme_df):
-    phoneme_df.groupby("track_id").size().agg(["min", "mean"])
-    return
-
-
-@app.cell
-def _(CSV_FOLDER, os, pd, phoneme_df):
-    track_df = pd.read_csv(
-        os.path.join(
-            CSV_FOLDER,
-            "LargeDataset",
-            "dataset_survey_2_final.csv",
-        ),
-        index_col="track_id",
-    )
-    track_df = track_df[track_df.index.isin(phoneme_df.track_id)]
-    track_df
-    return
-
-
-@app.cell
-def _(DATASET_FOLDER, os, pd):
-    SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_1")
-
-    def parse_js_date(series):
-        cleaned = series.str.replace(r"\s*\(.*\)", "", regex=True).str.strip()
-        return pd.to_datetime(cleaned, format="%a %b %d %Y %H:%M:%S GMT%z")
-
-    participants = pd.read_csv(os.path.join(SURVEY_FOLDER, "participants.csv"), index_col="_id")
-    surveyQuestions = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"), index_col="_id")
-    surveyAnswers_ = pd.read_csv(os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"), index_col="_id")
-    songs = pd.read_csv(os.path.join(SURVEY_FOLDER, "songs.csv"), index_col="_id")
-    participants["editDate"] = parse_js_date(participants["editDate"])
-    participants["createDate"] = parse_js_date(participants["createDate"])
-    participants[participants.surveyCompleted]
-    participants["completionTime"] = participants["editDate"] - participants["createDate"]
-    participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
-    participants[participants.surveyCompleted]
-    surveyAnswers_
-    return surveyAnswers_, surveyQuestions
-
-
-@app.cell
-def _(surveyQuestions):
-    surveyQuestions["randomized"] = surveyQuestions.questionnaireID < 3
-    surveyQuestions
-    return
-
-
-@app.cell
-def _(pd, phoneme_df, surveyAnswers_, surveyQuestions):
-    def getTrackIdsForAnswer(row):
-        questionnaireID = row["questionID"]
-        answerKey1 = row["answer_1"]
-        answerKey2 = row["answer_2"]
-        question = surveyQuestions.loc[questionnaireID]
-        return pd.Series(
-            {
-                "track_id_X": question["X"],
-                "track_id_1": question[answerKey1],
-                "track_id_2": question[answerKey2],
-                "skipped": question["skip"],
-            }
-        )
-
-    surveyAnswers_[["track_id_X", "track_id_1", "track_id_2", "skipped"]] = surveyAnswers_.apply(
-        getTrackIdsForAnswer, axis=1
-    )
-    survey_answers_mask = (
-        (~surveyAnswers_.skipped)
-        & surveyAnswers_.track_id_X.isin(phoneme_df.track_id)
-        & surveyAnswers_.track_id_1.isin(phoneme_df.track_id)
-        & surveyAnswers_.track_id_2.isin(phoneme_df.track_id)
-    )
-    surveyAnswers = surveyAnswers_[survey_answers_mask].drop(columns="skipped")
-    surveyAnswers
-    return (surveyAnswers,)
 
 
 @app.cell(hide_code=True)
@@ -189,49 +172,48 @@ def _(mo):
 
 
 @app.cell
-def _():
-    from scipy.stats import wasserstein_distance_nd
-
-    return (wasserstein_distance_nd,)
-
-
-@app.cell
-def _(mo, pd, phoneme_df, surveyAnswers, wasserstein_distance_nd):
-    def get_emd_difference(x, a_1, a_2) -> dict:
+def _(mo, pd, phoneme_df, questions_df, wasserstein_distance_nd):
+    def get_emd_distance_diff(x, a_1, a_2) -> float:
         """Get the differences of EMD-Distances for a triplet of distributions
         x, a_1 and a_2 should be a distribution as nd-vectors of feature values
         """
         emd_1 = wasserstein_distance_nd(x, a_1)
         emd_2 = wasserstein_distance_nd(x, a_2)
-        dist = (emd_2 - emd_1) / (emd_1 + emd_2)
-        agg_score = 1.0 if emd_1 < emd_2 else (-1.0 if emd_1 > emd_2 else 0.0)
-        acc_score = 1.0 if emd_1 < emd_2 else 0.0
-        return {"distance": dist, "agreement": agg_score, "accuracy": acc_score}
+        norm_dist = (emd_2 - emd_1) / (emd_1 + emd_2)
+        return (norm_dist + 1) / 2
 
-    def get_phoneme_features_per_track(track_id, feature_df):
-        return feature_df[phoneme_df.track_id == track_id]
 
-    def get_local_feature_emd_distance(
-        answer,
+    def get_phoneme_features_per_track(trackID, feature_df):
+        return feature_df[phoneme_df.trackID == trackID]
+
+
+    def get_local_feature_emd_distance_diff(
+        question,
         feature_df: pd.DataFrame,
-    ):
-        x = get_phoneme_features_per_track(answer["track_id_X"], feature_df)
-        a_1 = get_phoneme_features_per_track(answer["track_id_1"], feature_df)
-        a_2 = get_phoneme_features_per_track(answer["track_id_2"], feature_df)
-        return get_emd_difference(x, a_1, a_2)
+    ) -> float:
+        x = get_phoneme_features_per_track(question["X"], feature_df)
+        a_1 = get_phoneme_features_per_track(question["A"], feature_df)
+        a_2 = get_phoneme_features_per_track(question["B"], feature_df)
+        return get_emd_distance_diff(x, a_1, a_2)
 
-    def run_emd_distance_algorithm(feature_df):
-        rows = mo.status.progress_bar(
-            surveyAnswers.iterrows(),
-            title="Calculating EMD Distance Algorithm",
-            total=len(surveyAnswers),
+
+    def run_emd_distance_diff_algorithm(feature_df):
+        columns = {}
+        for feat in mo.status.progress_bar(
+            feature_df.columns,
+            title="Calculating EMD Distance Algorithm...",
             remove_on_exit=True,
-        )
-        result_df = pd.DataFrame({idx: get_local_feature_emd_distance(row, feature_df) for idx, row in rows}).T
-        result_df.index.name = "survey_idx"
-        return result_df
+        ):
+            feat_scores = questions_df.apply(
+                lambda x, f=feat: get_local_feature_emd_distance_diff(
+                    x, feature_df[f]
+                ),
+                axis=1,
+            )
+            columns[feat] = feat_scores.to_list()
+        return pd.DataFrame(columns, index=questions_df.index)
 
-    return (run_emd_distance_algorithm,)
+    return (run_emd_distance_diff_algorithm,)
 
 
 @app.cell(hide_code=True)
@@ -240,13 +222,6 @@ def _(mo):
     # MFCCs
     """)
     return
-
-
-@app.cell
-def _():
-    from sklearn.preprocessing import StandardScaler
-
-    return (StandardScaler,)
 
 
 @app.cell
@@ -262,7 +237,9 @@ def _(SAMPLE_RATE):
 
 @app.cell
 def _(SAMPLE_RATE, librosa):
-    def get_mfcc_stats(y, n_mfcc=10, hop_length=int(SAMPLE_RATE * 0.01), fmin=50, fmax=8_000):
+    def get_mfcc_stats(
+        y, n_mfcc=10, hop_length=int(SAMPLE_RATE * 0.01), fmin=50, fmax=8_000
+    ):
         """Calculates mel-frequency cepstral coefficients, sampled at SAMPLE_RATE (16 kHz)"""
         n_fft = min(2048, len(y))
         mfccs = librosa.feature.mfcc(
@@ -280,39 +257,190 @@ def _(SAMPLE_RATE, librosa):
 
 
 @app.cell
-def _(
-    StandardScaler,
-    get_mfcc_stats,
-    mfcc_config,
-    mo,
-    np,
-    pd,
-    phoneme_df,
-    phonemes,
-):
-    mfcc_scaler = StandardScaler()
-
-    mfcc_values = np.stack(
-        [
-            get_mfcc_stats(x, **mfcc_config)
-            for x in mo.status.progress_bar(phonemes, title="Calculating MFCCs...", remove_on_exit=True)
-        ]
-    )
-
-    mfcc_df = pd.DataFrame(
-        mfcc_scaler.fit_transform(mfcc_values),
-        columns=[f"mfcc_{e}" for e in range(mfcc_config["n_mfcc"])],
-        index=phoneme_df.index,
+def _(get_mfcc_stats, mfcc_config, mo, np, pd, phoneme_df, phonemes, scale_df):
+    mfcc_df = scale_df(
+        pd.DataFrame(
+            np.stack(
+                [
+                    get_mfcc_stats(x, **mfcc_config)
+                    for x in mo.status.progress_bar(
+                        phonemes, title="Calculating MFCCs...", remove_on_exit=True
+                    )
+                ]
+            ),
+            columns=[f"mfcc_{e}" for e in range(mfcc_config["n_mfcc"])],
+            index=phoneme_df.index,
+        )
     )
     mfcc_df
     return (mfcc_df,)
 
 
 @app.cell
-def _(mfcc_df, run_emd_distance_algorithm):
-    mfcc_emd_differences = run_emd_distance_algorithm(mfcc_df)
-    mfcc_emd_differences.describe()
-    return (mfcc_emd_differences,)
+def _(mfcc_df, run_emd_distance_diff_algorithm):
+    mfcc_emd_distance_diff_df = run_emd_distance_diff_algorithm(mfcc_df)
+    mfcc_emd_distance_diff_df
+    return (mfcc_emd_distance_diff_df,)
+
+
+@app.cell
+def _(mfcc_emd_distance_diff_df, plot_correlation_bar, questions_df):
+    plot_correlation_bar(
+        title="MFCC EMD Correlations (Randomized)",
+        feature_df=mfcc_emd_distance_diff_df[questions_df.randomized],
+        target_feature=questions_df[questions_df.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(mfcc_emd_distance_diff_df, plot_correlation_bar, questions_df):
+    plot_correlation_bar(
+        title="MFCC EMD Correlations (Max Entropy)",
+        feature_df=mfcc_emd_distance_diff_df[~questions_df.randomized],
+        target_feature=questions_df[~questions_df.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(mfcc_emd_distance_diff_df, plot_correlation_bar, questions_df):
+    plot_correlation_bar(
+        title="MFCC EMD Correlations (All)",
+        feature_df=mfcc_emd_distance_diff_df,
+        target_feature=questions_df["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(mfcc_emd_distance_diff_df, plot_feature_correlation_scatter):
+    plot_feature_correlation_scatter("MFCC 4", mfcc_emd_distance_diff_df["mfcc_4"])
+    return
+
+
+@app.cell
+def _(
+    get_all_distance_differences,
+    mfcc_emd_distance_diff_df,
+    plot_correlation_bar,
+    questions_df,
+    scale_df,
+    track_df,
+):
+    scaled_track_df = scale_df(
+        track_df,
+        [
+            "pred_approachability",
+            "pred_danceable",
+            "pred_not_danceable",
+            "pred_engagement",
+            "pred_tempo",
+            "pred_p_male",
+            "pred_p_female",
+            "pred_age",
+            "pred_age_no_trim",
+        ],
+    )
+    hl_features = [
+        "pred_genre_main",
+        "pred_genre_sub",
+        "pred_approachability",
+        "pred_danceable",
+        "pred_not_danceable",
+        "pred_engagement",
+        "pred_mood_and_theme",
+        "pred_tempo",
+        "pred_gender",
+        "pred_p_male",
+        "pred_p_female",
+        "pred_age",
+        "pred_age_no_trim",
+    ]
+    hl_distances = get_all_distance_differences(
+        track_df, hl_features, questions_df
+    )
+    hl_distances
+
+    plot_correlation_bar(
+        title="MFCC EMD Correlations (Speaker Gender)",
+        feature_df=mfcc_emd_distance_diff_df,
+        target_feature=hl_distances["pred_p_male"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ### Gender Dependent
+    """)
+    return
+
+
+@app.cell
+def _(questions_df):
+    gender_m_mask = questions_df["gender_distribution"] == 1.0
+    gender_f_mask = questions_df["gender_distribution"] == 0.0
+    gender_mixed_mask = questions_df["gender_distribution"] == 0.5
+    return gender_f_mask, gender_m_mask, gender_mixed_mask
+
+
+@app.cell
+def _(
+    gender_m_mask,
+    mfcc_emd_distance_diff_df,
+    plot_correlation_bar,
+    questions_df,
+):
+    plot_correlation_bar(
+        title="GeMAPS Feature Correlations (Male only)",
+        feature_df=mfcc_emd_distance_diff_df[gender_m_mask],
+        target_feature=questions_df[gender_m_mask]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(
+    gender_f_mask,
+    mfcc_emd_distance_diff_df,
+    plot_correlation_bar,
+    questions_df,
+):
+    plot_correlation_bar(
+        title="GeMAPS Feature Correlations (Female only)",
+        feature_df=mfcc_emd_distance_diff_df[gender_f_mask],
+        target_feature=questions_df[gender_f_mask]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(
+    gender_mixed_mask,
+    mfcc_emd_distance_diff_df,
+    plot_correlation_bar,
+    questions_df,
+):
+    plot_correlation_bar(
+        title="GeMAPS Feature Correlations (Mixed Gender)",
+        feature_df=mfcc_emd_distance_diff_df[gender_mixed_mask],
+        target_feature=questions_df[gender_mixed_mask]["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _():
+    return
 
 
 @app.cell(hide_code=True)
@@ -324,13 +452,19 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(librosa):
     mel_config = {
         "fmin": 50,
         "fmax": 8_000,
         "n_mels": 128,
     }
-    return (mel_config,)
+    mel_centers = librosa.mel_frequencies(
+        n_mels=mel_config["n_mels"],
+        fmin=mel_config["fmin"],
+        fmax=mel_config["fmax"],
+    )
+    mel_centers[:10]
+    return mel_centers, mel_config
 
 
 @app.cell
@@ -348,7 +482,6 @@ def _(SAMPLE_RATE, librosa):
 
 @app.cell
 def _(
-    StandardScaler,
     get_mel_frequencies,
     mel_config,
     mo,
@@ -356,63 +489,70 @@ def _(
     pd,
     phoneme_df,
     phonemes,
+    scale_df,
 ):
-    mel_scaler = StandardScaler()
-
-    mel_values = np.stack(
-        [
-            get_mel_frequencies(x, **mel_config)
-            for x in mo.status.progress_bar(phonemes, title="Calculating Mels...", remove_on_exit=True)
-        ]
-    )
-
-    mel_df = pd.DataFrame(
-        mel_scaler.fit_transform(mel_values),
-        columns=[f"mel_{e}" for e in range(mel_config["n_mels"])],
-        index=phoneme_df.index,
+    mel_df = scale_df(
+        pd.DataFrame(
+            np.stack(
+                [
+                    get_mel_frequencies(x, **mel_config)
+                    for x in mo.status.progress_bar(
+                        phonemes, title="Calculating Mels...", remove_on_exit=True
+                    )
+                ]
+            ),
+            columns=[f"mel_{e}" for e in range(mel_config["n_mels"])],
+            index=phoneme_df.index,
+        )
     )
     mel_df
     return (mel_df,)
 
 
 @app.cell
-def _(mel_df, run_emd_distance_algorithm):
-    mel_emd_differences = run_emd_distance_algorithm(mel_df)
-    mel_emd_differences.describe()
-    return (mel_emd_differences,)
+def _(mel_df, run_emd_distance_diff_algorithm):
+    mel_emd_distance_diff_df = run_emd_distance_diff_algorithm(mel_df)
+    mel_emd_distance_diff_df
+    return (mel_emd_distance_diff_df,)
 
 
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ## Plotting
-    """)
+@app.cell
+def _(mel_emd_distance_diff_df, plot_correlation_bar, questions_df):
+    plot_correlation_bar(
+        title="Mel EMD Correlations (Randomized)",
+        feature_df=mel_emd_distance_diff_df[questions_df.randomized],
+        target_feature=questions_df[questions_df.randomized]["A_perc"],
+        top_x=10,
+    )
     return
 
 
 @app.cell
-def _(surveyAnswers):
-    RANDOM_CHANCE = len(surveyAnswers[surveyAnswers.answer_1 == "B"]) / len(surveyAnswers)
-    RANDOM_CHANCE
-    return (RANDOM_CHANCE,)
+def _(mel_emd_distance_diff_df, plot_correlation_bar, questions_df):
+    plot_correlation_bar(
+        title="Mel EMD Correlations (Max Entropy)",
+        feature_df=mel_emd_distance_diff_df[~questions_df.randomized],
+        target_feature=questions_df[~questions_df.randomized]["A_perc"],
+        top_x=10,
+    )
+    return
 
 
 @app.cell
-def _(
-    PLOT_SAVE_DIR,
-    RANDOM_CHANCE,
-    mel_emd_differences,
-    mfcc_emd_differences,
-    os,
-    plot_scores,
-):
-    plot_scores(
-        x=[mel_emd_differences["accuracy"].mean(), mfcc_emd_differences["accuracy"].mean()],
-        y=["Mel", "MFCC"],
-        title="EMD Feature Accuracy",
-        xlabel="Mean Accuracy (%)",
-        random_chance=RANDOM_CHANCE,
-        save_path=os.path.join(PLOT_SAVE_DIR, "emd_feature_accuracy.png"),
+def _(mel_emd_distance_diff_df, plot_correlation_bar, questions_df):
+    plot_correlation_bar(
+        title="Mel EMD Correlations (All)",
+        feature_df=mel_emd_distance_diff_df,
+        target_feature=questions_df["A_perc"],
+        top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(mel_centers, mel_emd_distance_diff_df, plot_feature_correlation_scatter):
+    plot_feature_correlation_scatter(
+        f"Mel 4th Band ({mel_centers[4]:.1f} Hz)", mel_emd_distance_diff_df["mel_4"]
     )
     return
 

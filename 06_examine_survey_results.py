@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.9"
+__generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
 
@@ -38,7 +38,7 @@ def _():
     )
     from src.survey_dataset_helpers import load_survey_data
 
-    return DATASET_FOLDER, alt, load_survey_data, mo, os
+    return DATASET_FOLDER, load_survey_data, mo, os
 
 
 @app.cell
@@ -46,9 +46,9 @@ def _(DATASET_FOLDER, os):
     SURVEY_FOLDER = os.path.join(DATASET_FOLDER, "survey", "survey_2")
     CSV_PATHS = {
         "participants": os.path.join(SURVEY_FOLDER, "participants.csv"),
-        "songs":  os.path.join(SURVEY_FOLDER, "songs.csv"),
-        "answers": os.path.join(SURVEY_FOLDER, "answers_df.csv"),
-        "questions":  os.path.join(SURVEY_FOLDER, "questions_df.csv"),
+        "songs": os.path.join(SURVEY_FOLDER, "songs.csv"),
+        "answers": os.path.join(SURVEY_FOLDER, "surveyAnswers.csv"),
+        "questions": os.path.join(SURVEY_FOLDER, "surveyQuestions.csv"),
     }
     return (CSV_PATHS,)
 
@@ -66,10 +66,10 @@ def _(CSV_PATHS, load_survey_data):
     SURVEY_DATA = load_survey_data(CSV_PATHS)
     questions_df = SURVEY_DATA["questions_df"]
     answers_df = SURVEY_DATA["answers_df"]
-    participants_df =SURVEY_DATA["participants_df"]
-    songs_df= SURVEY_DATA["songs_df"]
-    human_agreement= SURVEY_DATA["human_agreement"]
-    answer_a_b_ratio= SURVEY_DATA["answer_a_b_ratio"]
+    participants_df = SURVEY_DATA["participants_df"]
+    songs_df = SURVEY_DATA["songs_df"]
+    human_agreement = SURVEY_DATA["human_agreement"]
+    answer_a_b_ratio = SURVEY_DATA["answer_a_b_ratio"]
     return answers_df, participants_df, questions_df
 
 
@@ -92,30 +92,24 @@ def _(mo):
 @app.cell
 def _(answers_df, participants_df, questions_df):
     ab_ratio_a = (
-        100
-        * len(answers_df[answers_df.answer_1 == "A"])
-        / len(answers_df)
+        100 * len(answers_df[answers_df.answer_1 == "A"]) / len(answers_df)
     )
     ab_ratio_b = (
-        100
-        * len(answers_df[answers_df.answer_1 == "B"])
-        / len(answers_df)
+        100 * len(answers_df[answers_df.answer_1 == "B"]) / len(answers_df)
     )
 
     instruments_on_yes = (
-        100
-        * len(answers_df[answers_df.backgroundMusic])
-        / len(answers_df)
+        100 * len(answers_df[answers_df.backgroundMusic]) / len(answers_df)
     )
     instruments_on_no = (
-        100
-        * len(answers_df[~answers_df.backgroundMusic])
-        / len(answers_df)
+        100 * len(answers_df[~answers_df.backgroundMusic]) / len(answers_df)
     )
 
     print(f"""
     Total number of participants: {len(participants_df)}
-    Number of completed surveys:  {len(participants_df[participants_df.surveyCompleted])}
+    Number of completed surveys:  {
+        len(participants_df[participants_df.surveyCompleted])
+    }
     Number of incomple surveys:   {
         len(participants_df[~participants_df.surveyCompleted])
     }
@@ -126,9 +120,7 @@ def _(answers_df, participants_df, questions_df):
 
     Total number of questions: {len(questions_df)} 
     Number of questions with no answers: {
-        questions_df[
-            ~questions_df.index.isin(answers_df["questionID"])
-        ].shape[0]
+        questions_df[~questions_df.index.isin(answers_df["questionID"])].shape[0]
     }
     Number of questions with multiple answers: {
         answers_df.groupby("questionID").size().loc[lambda x: x > 1].shape[0]
@@ -138,47 +130,6 @@ def _(answers_df, participants_df, questions_df):
     Answer A/B: {ab_ratio_a:.1f}% A; {ab_ratio_b:.1f}% B
     Instruments on:   {instruments_on_yes:.1f}% Yes; {instruments_on_no:.1f}% No
     """)
-    return
-
-
-@app.cell
-def _(alt, participants_df):
-    _chart = (
-        alt.Chart(
-            participants_df[
-                (participants_df.surveyCompleted)
-                & (participants_df.completionMinutes <= 100)
-            ][["completionMinutes"]]
-        )  # <-- replace with data
-        .mark_bar()
-        .encode(
-            x=alt.X(
-                "completionMinutes",
-                type="quantitative",
-                bin=alt.Bin(step=1),
-                title="completionMinutes",
-            ),
-            y=alt.Y("count()", type="quantitative", title="Number of records"),
-            tooltip=[
-                alt.Tooltip(
-                    "completionMinutes",
-                    type="quantitative",
-                    bin=alt.Bin(step=5),
-                    title="completionMinutes",
-                    format=",.2f",
-                ),
-                alt.Tooltip(
-                    "count()",
-                    type="quantitative",
-                    format=",.0f",
-                    title="Number of records",
-                ),
-            ],
-        )
-        .properties(width="container")
-        .configure_view(stroke=None)
-    )
-    _chart
     return
 
 
@@ -219,7 +170,9 @@ def _(mo):
 def _(multi_answer_mask, pe, po, questions_df):
     # agreement for max entropy questions:
     randomized_mask = questions_df["randomized"]
-    po_max_kappa = questions_df[multi_answer_mask & (~randomized_mask)].agreement.mean()
+    po_max_kappa = questions_df[
+        multi_answer_mask & (~randomized_mask)
+    ].agreement.mean()
 
     kappa_max_ent = (po - pe) / (1 - pe)
     print(f"""

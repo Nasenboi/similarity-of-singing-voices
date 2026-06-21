@@ -61,7 +61,7 @@ def plot_scores(
     ylabel: str = "Features",
     save_path: str = None,
     random_chance: float = None,
-    human_baseline: float = None,
+    target_feature: float = None,
     legend_loc: str = "best",
 ):
     """Plots any scores as a bar plot
@@ -74,7 +74,7 @@ def plot_scores(
         ylabel (str, optional): Y axis label_. Defaults to "Features".
         save_path (str, optional): Optional path to save the model to. Defaults to None.
         random_chance (float, optional): Optional random chance line. Defaults to None.
-        human_baseline (float, optional): Optional human base line. Defaults to None.
+        target_feature (float, optional): Optional human base line. Defaults to None.
         legend_loc (string, optional): Optional location of the legend. Defaults to "best".
     """
     x, y = list(x), list(y)
@@ -90,16 +90,16 @@ def plot_scores(
             label=f"Random chance = {random_chance:.3f}",
         )
 
-    if human_baseline is not None:
+    if target_feature is not None:
         plt.axvline(
-            x=human_baseline,
+            x=target_feature,
             linestyle=":",
             color="green",
             alpha=1.0,
-            label=f"Human Baseline = {human_baseline:.3f}",
+            label=f"Human Baseline = {target_feature:.3f}",
         )
 
-    if random_chance is not None or human_baseline is not None:
+    if random_chance is not None or target_feature is not None:
         plt.legend(loc=legend_loc)
     plt.title(title)
     plt.xlabel(xlabel)
@@ -113,13 +113,13 @@ def plot_scores(
 
 def plot_correlation_bar(
     feature_df,
-    human_baseline,
+    target_feature,
     top_x: int = 15,
     title: str = "Feature Correlations with Human Baseline",
     xlabel: str = "Pearson r",
     save_path: str = None,
 ):
-    baseline = np.asarray(human_baseline, dtype=float)
+    baseline = np.asarray(target_feature, dtype=float)
     records = []
     for col in feature_df.columns:
         vals = np.asarray(feature_df[col], dtype=float)

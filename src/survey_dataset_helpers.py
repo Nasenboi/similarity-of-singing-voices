@@ -3,6 +3,10 @@ import os
 import numpy as np
 import pandas as pd
 
+# -- consts --
+GENDER_M_THRESHOLD = 0.4
+GENDER_F_THRESHOLD = 1 - GENDER_M_THRESHOLD
+
 
 # -- basic helper functions --
 def parse_js_date(series: pd.Series):
@@ -110,6 +114,49 @@ def get_a_b_answer_ratio(answers_df: pd.DataFrame):
     return len(answers_df[answers_df.answer_1 == "B"]) / len(answers_df)
 
 
+def calc_gmsi_active_engagement_value(row):
+    """Calcualates the GoldMSI value for a participant row
+
+    Args:
+        row: the participant row
+
+    Returns:
+        float: the estimated active engagement GoldMSI value
+    """
+    try:
+        reverse_scores = [7, 6, 5, 4, 3, 2, 1]
+        reverse_score: float = lambda x: reverse_scores[int(x) - 1]
+        active_engagement = (
+            row["gmsi1"]
+            + row["gmsi2"]
+            + row["gmsi3"]
+            + row["gmsi4"]
+            + reverse_score(row["gmsi5"])
+            + row["gmsi6"]
+            + row["gmsi7"]
+        )
+        return active_engagement / 7
+    except:
+        return None
+
+
+def get_gender_distribution(row, track_df):
+    pred_p_X = track_df.loc[row["X"]]["pred_p_male"]
+    pred_p_A = track_df.loc[row["A"]]["pred_p_male"]
+    pred_p_B = track_df.loc[row["B"]]["pred_p_male"]
+
+    if pred_p_X >= GENDER_M_THRESHOLD and pred_p_A >= GENDER_M_THRESHOLD and pred_p_B >= GENDER_M_THRESHOLD:
+        return 1.0  # only male
+    elif pred_p_X <= GENDER_F_THRESHOLD and pred_p_A <= GENDER_F_THRESHOLD and pred_p_B <= GENDER_F_THRESHOLD:
+        return 0.0  # only female
+    elif pred_p_A >= GENDER_M_THRESHOLD and pred_p_B >= GENDER_M_THRESHOLD:
+        return 0.75  # only male references, female reference
+    elif pred_p_A <= GENDER_F_THRESHOLD and pred_p_B <= GENDER_F_THRESHOLD:
+        return 0.25  # only female references, male reference
+    else:
+        return 0.5  # mixed reference voices
+
+
 # -- dataset converters --
 
 
@@ -146,6 +193,7 @@ def load_participant_df(csv_path: str):
     participants[participants.surveyCompleted]
     participants["completionTime"] = participants["editDate"] - participants["createDate"]
     participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
+    participants["gmsi_active_engagement"] = participants.apply(calc_gmsi_active_engagement_value, axis=1)
     return participants
 
 
@@ -153,7 +201,7 @@ def load_survey_data(csv_paths: dict):
     """Loads the survey data from the given paths
 
     Args:
-        csv_paths (dict): a dict with paths to the csv files
+        csv_paths (dict): a dict with paths to the csv files, tracks csv is optional
 
     Returns:
         dict | tuple: a dict containing the dataframes and additional statistical dataset information
@@ -164,6 +212,15 @@ def load_survey_data(csv_paths: dict):
     survey_data["answers_df"] = pd.read_csv(csv_paths["answers"], index_col="_id")
     survey_data["participants_df"] = load_participant_df(csv_paths["participants"])
     survey_data["questions_df"] = load_questions_df(csv_paths["questions"], survey_data["answers_df"])
+
+    if csv_paths.get("tracks") is not None:
+        survey_data["track_df"] = pd.read_csv(
+            csv_paths["tracks"],
+            index_col="track_id",
+        )
+        survey_data["questions_df"]["gender_distribution"] = survey_data["questions_df"].apply(
+            lambda x: get_gender_distribution(x, survey_data["track_df"]), axis=1
+        )
 
     # additional post processing of survey answers, has to be
     survey_data["answers_df"] = filter_answers(survey_data["answers_df"], survey_data["questions_df"])
