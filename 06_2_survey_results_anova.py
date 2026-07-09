@@ -46,7 +46,10 @@ def _():
         scale_df,
     )
     from src.statistics.feature_correlation import get_anova_values
-    from src.statistics.plotting import plot_correlation_bar, plot_correlation_scatter
+    from src.statistics.plotting import (
+        plot_correlation_bar,
+        plot_correlation_scatter,
+    )
     from src.survey_dataset_helpers import load_survey_data, get_answer_ratios
     from src.utils import get_trimmed_audio
 
@@ -86,12 +89,17 @@ def _(CSV_FOLDER, DATASET_FOLDER, os):
 def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
     PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
 
-    def plot_feature_correlation_scatter(feature_name: str, feature, target_feature=questions_df["A_perc"]):
+
+    def plot_feature_correlation_scatter(
+        feature_name: str, feature, target_feature=questions_df["A_perc"]
+    ):
         plot_correlation_scatter(
             title=f"{feature_name} Feature Correlation",
             x=target_feature,
             y=feature,
-            save_path=os.path.join(PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"),
+            save_path=os.path.join(
+                PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"
+            ),
             legend_loc="lower right",
         )
 
@@ -150,7 +158,9 @@ def _(get_all_distance_differences, questions_df, scale_df, track_df):
             "pred_age_no_trim",
         ],
     )
-    hl_distances = get_all_distance_differences(scaled_track_df, hl_features, questions_df)
+    hl_distances = get_all_distance_differences(
+        scaled_track_df, hl_features, questions_df
+    )
     hl_distances
     return
 
@@ -168,26 +178,36 @@ def _(mo):
 @app.cell
 def _(get_answer_ratios, questions_df):
     def get_ageement_values(answers_df):
-        return questions_df.apply(lambda x: get_answer_ratios(x.name, answers_df).agreement, axis=1).dropna(axis=0)
+        return questions_df.apply(
+            lambda x: get_answer_ratios(x.name, answers_df).agreement, axis=1
+        ).dropna(axis=0)
 
     return (get_ageement_values,)
 
 
 @app.cell
 def _(answers_df, questions_df):
-    randomized_mask = answers_df.questionID.apply(lambda x: questions_df.loc[x].randomized)
+    randomized_mask = answers_df.questionID.apply(
+        lambda x: questions_df.loc[x].randomized
+    )
     return (randomized_mask,)
 
 
 @app.cell
 def _(answers_df, get_ageement_values, randomized_mask):
-    get_ageement_values(answers_df[randomized_mask]).mean(), get_ageement_values(answers_df[~randomized_mask]).mean()
+    (
+        get_ageement_values(answers_df[randomized_mask]).mean(),
+        get_ageement_values(answers_df[~randomized_mask]).mean(),
+    )
     return
 
 
 @app.cell
 def _(answers_df, get_ageement_values, get_anova_values, randomized_mask):
-    get_anova_values(get_ageement_values(answers_df[randomized_mask]), get_ageement_values(answers_df[~randomized_mask]))
+    get_anova_values(
+        get_ageement_values(answers_df[randomized_mask]),
+        get_ageement_values(answers_df[~randomized_mask]),
+    )
     return
 
 
@@ -201,13 +221,18 @@ def _(mo):
 
 @app.cell
 def _(answers_df, questions_df):
-    gender_distribution_mask = answers_df.questionID.apply(lambda x: questions_df.loc[x].gender_distribution == 0.5)
+    gender_distribution_mask = answers_df.questionID.apply(
+        lambda x: questions_df.loc[x].gender_distribution == 0.5
+    )
     return (gender_distribution_mask,)
 
 
 @app.cell
 def _(answers_df, gender_distribution_mask, get_ageement_values):
-    get_ageement_values(answers_df[gender_distribution_mask]).mean(), get_ageement_values(answers_df[~gender_distribution_mask]).mean()
+    (
+        get_ageement_values(answers_df[gender_distribution_mask]).mean(),
+        get_ageement_values(answers_df[~gender_distribution_mask]).mean(),
+    )
     return
 
 
@@ -218,7 +243,10 @@ def _(
     get_ageement_values,
     get_anova_values,
 ):
-    get_anova_values(get_ageement_values(answers_df[gender_distribution_mask]), get_ageement_values(answers_df[~gender_distribution_mask]))
+    get_anova_values(
+        get_ageement_values(answers_df[gender_distribution_mask]),
+        get_ageement_values(answers_df[~gender_distribution_mask]),
+    )
     return
 
 

@@ -68,7 +68,9 @@ def _():
         pd,
         plot_correlation_bar,
         plot_correlation_scatter,
+        plt,
         scale_df,
+        sns,
     )
 
 
@@ -413,6 +415,181 @@ def _(gemaps_gda_df, plot_feature_correlation_scatter):
         "GeMAPS Feature Set (Canberra)",
         gemaps_gda_df["distance_canberra"],
     )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    # Backwards Stepwise Regression
+    """)
+    return
+
+
+@app.cell
+def _(questions_df):
+    questions_df
+    return
+
+
+@app.cell
+def _():
+    from sklearn.linear_model import LinearRegression
+    from sklearn.model_selection import cross_val_score, KFold
+    import statsmodels.api as sm
+    from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+    return (sm,)
+
+
+@app.cell
+def _(gemaps_features_df, np, questions_df):
+    def get_feature_differences(question):
+        X_features = gemaps_features_df.loc[question["X"]].values
+        A_features = gemaps_features_df.loc[question["A"]].values
+        B_features = gemaps_features_df.loc[question["B"]].values
+        XA_diff = X_features - A_features
+        XB_diff = X_features - B_features
+
+        XAB_diff = XB_diff - XA_diff
+        return XAB_diff
+
+
+    gemaps_feature_differences = np.stack(
+        questions_df.apply(get_feature_differences, axis=1)
+    )
+    gemaps_feature_differences.shape
+    return (gemaps_feature_differences,)
+
+
+@app.cell
+def _(gemaps_feature_differences, np, pd, plt, smile_gemaps, sns):
+    gemaps_feature_corr = pd.DataFrame(
+        gemaps_feature_differences, columns=smile_gemaps.feature_names
+    ).corr()
+    mask = np.triu(np.ones_like(gemaps_feature_corr, dtype=bool))
+
+    f, ax = plt.subplots(figsize=(11, 9))
+    cmap = sns.diverging_palette(230, 20, as_cmap=True)
+    sns.heatmap(
+        gemaps_feature_corr,
+        mask=mask,
+        cmap=cmap,
+        vmax=0.3,
+        center=0,
+        square=True,
+        linewidths=0.5,
+        cbar_kws={"shrink": 0.5},
+    )
+    return (gemaps_feature_corr,)
+
+
+@app.cell
+def _(gemaps_feature_corr, np, smile_gemaps):
+    reduced_selection = [0, 1, 10, 30, 31, 32, 33, 34, 35, 78, 79, 80]
+
+    corr_threshold = 0.7
+    for i in range(len(smile_gemaps.feature_names)):
+        if i in reduced_selection:
+            continue
+
+        for j in reduced_selection:
+            if gemaps_feature_corr.values[i, j] >= corr_threshold:
+                break
+        else:
+            reduced_selection.append(i)
+
+
+    reduced_feature_names = np.array(smile_gemaps.feature_names)[reduced_selection]
+    len(reduced_feature_names)
+    return reduced_feature_names, reduced_selection
+
+
+@app.cell
+def _(
+    gemaps_feature_differences,
+    questions_df,
+    reduced_feature_names,
+    reduced_selection,
+    sm,
+):
+    def backward_stepwise_regression(X, y, feature_names, alpha=0.05):
+        """
+        Perform backward stepwise regression
+        """
+        # Start with all features
+        current_features = list(range(X.shape[1]))
+        current_pvalues = None
+        removed_features = []
+
+        while True:
+            # Fit model with current features
+            X_current = X[:, current_features]
+            X_sm = sm.add_constant(X_current)
+            model = sm.OLS(y, X_sm).fit()
+
+            # Get p-values (excluding intercept)
+            pvalues = model.pvalues[1:]
+
+            # Find feature with highest p-value
+            max_p = pvalues.max()
+            max_p_idx = pvalues.argmax()
+
+            if max_p > alpha and len(current_features) > 1:
+                # Remove feature
+                removed_features.append((current_features[max_p_idx], max_p))
+                del current_features[max_p_idx]
+            else:
+                break
+
+        # Final model
+        X_final = X[:, current_features]
+        X_sm = sm.add_constant(X_final)
+        final_model = sm.OLS(y, X_sm).fit()
+
+        return final_model, current_features, removed_features
+
+
+    final_model, selected_features, removed = backward_stepwise_regression(
+        gemaps_feature_differences[:, reduced_selection],
+        questions_df["A_perc"].values,
+        reduced_feature_names,
+    )
+    print(final_model.summary())
+    print(
+        f"Selected features: {[str(reduced_feature_names[i]) for i in selected_features]}"
+    )
+    return final_model, selected_features
+
+
+@app.cell
+def _(final_model, pd, reduced_feature_names, selected_features):
+    pd.DataFrame(
+        {
+            feature: {
+                "coef": final_model.params[i + 1],
+                "std_err": final_model.bse[i + 1],
+                "t": final_model.tvalues[i + 1],
+                "p_value": final_model.pvalues[i + 1],
+                "ci_lower": final_model.conf_int()[i + 1][0],
+                "ci_upper": final_model.conf_int()[i + 1][1],
+                "coef_abs": abs(final_model.params[i + 1]),
+            }
+            for i, feature in enumerate(
+                [reduced_feature_names[i] for i in selected_features]
+            )
+        }
+    ).T
+    return
+
+
+@app.cell
+def _():
+    return
+
+
+@app.cell
+def _():
     return
 
 
