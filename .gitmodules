@@ -7,6 +7,3 @@
 [submodule "src/submodules/ssl-singer-identity"]
 	path = src/submodules/ssl-singer-identity
 	url = https://github.com/SonyCSLParis/ssl-singer-identity.git
-[submodule "src/submodules/cvsm"]
-	path = src/submodules/cvsm
-	url = https://github.com/cgaroufis/CVSM.git
