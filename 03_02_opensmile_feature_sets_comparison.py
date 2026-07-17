@@ -451,7 +451,7 @@ def _(gemaps_features_df, np, questions_df):
         XA_diff = X_features - A_features
         XB_diff = X_features - B_features
 
-        XAB_diff = XB_diff - XA_diff
+        XAB_diff = abs(XB_diff) - abs(XA_diff)
         return XAB_diff
 
 
@@ -560,6 +560,47 @@ def _(
         f"Selected features: {[str(reduced_feature_names[i]) for i in selected_features]}"
     )
     return final_model, selected_features
+
+
+@app.cell
+def _():
+    """
+                                OLS Regression Results
+    ==============================================================================
+    Dep. Variable:                      y   R-squared:                       0.299
+    Model:                            OLS   Adj. R-squared:                  0.266
+    Method:                 Least Squares   F-statistic:                     8.863
+    Date:                Thu, 16 Jul 2026   Prob (F-statistic):           4.51e-10
+    Time:                        16:45:44   Log-Likelihood:                 21.640
+    No. Observations:                 175   AIC:                            -25.28
+    Df Residuals:                     166   BIC:                             3.203
+    Df Model:                           8
+    Covariance Type:            nonrobust
+    ==============================================================================
+                     coef    std err          t      P>|t|      [0.025      0.975]
+    ------------------------------------------------------------------------------
+    const          0.4664      0.017     27.280      0.000       0.433       0.500
+    x1             0.0706      0.016      4.513      0.000       0.040       0.101
+    x2             0.0459      0.016      2.952      0.004       0.015       0.077
+    x3            -0.0397      0.016     -2.442      0.016      -0.072      -0.008
+    x4             0.0516      0.014      3.654      0.000       0.024       0.080
+    x5             0.0511      0.017      3.057      0.003       0.018       0.084
+    x6             0.0324      0.015      2.193      0.030       0.003       0.062
+    x7            -0.0501      0.018     -2.831      0.005      -0.085      -0.015
+    x8             0.0424      0.017      2.516      0.013       0.009       0.076
+    ==============================================================================
+    Omnibus:                        5.796   Durbin-Watson:                   1.977
+    Prob(Omnibus):                  0.055   Jarque-Bera (JB):                3.273
+    Skew:                          -0.099   Prob(JB):                        0.195
+    Kurtosis:                       2.360   Cond. No.                         1.84
+    ==============================================================================
+
+    Notes:
+    [1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+    Selected features: ['F0semitoneFrom27.5Hz_sma3nz_meanRisingSlope', 'mfcc1_sma3_stddevNorm', 'mfcc3_sma3_amean', 'mfcc4_sma3_amean', 'F1frequency_sma3nz_stddevNorm', 'F1amplitudeLogRelF0_sma3nz_amean', 'F2bandwidth_sma3nz_amean', 'loudnessPeaksPerSec']
+
+    """
+    return
 
 
 @app.cell

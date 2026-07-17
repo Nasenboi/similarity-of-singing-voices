@@ -38,7 +38,7 @@ def _():
     )
     from src.survey_dataset_helpers import load_survey_data
 
-    return DATASET_FOLDER, load_survey_data, mo, os
+    return DATASET_FOLDER, load_survey_data, mo, os, pd
 
 
 @app.cell
@@ -78,6 +78,43 @@ def _(questions_df):
     # There should be no duplicate triplets in all questions_df
     duplicates = questions_df.duplicated(subset=["X", "A", "B"], keep=False)
     print(questions_df[duplicates])
+    return
+
+
+@app.cell
+def _(participants_df):
+    participants_df[participants_df.surveyCompleted]
+    return
+
+
+@app.cell
+def _(participants_df, pd):
+    genre_scores = {}
+
+
+    def increase_score(g, v=1):
+        genre_scores[g] = genre_scores.get(g, 0) + v
+
+
+    participants_df[participants_df.surveyCompleted].genre1.apply(
+        lambda g: increase_score(g)
+    )
+    participants_df[participants_df.surveyCompleted].genre2.apply(
+        lambda g: increase_score(g)
+    )
+    participants_df[participants_df.surveyCompleted].genre3.apply(
+        lambda g: increase_score(g)
+    )
+
+    genre_score_df = pd.DataFrame.from_dict(
+        {
+            g: v / len(participants_df[participants_df.surveyCompleted])
+            for g, v in genre_scores.items()
+        },
+        orient="index",
+        columns=["score"],
+    )
+    genre_score_df
     return
 
 

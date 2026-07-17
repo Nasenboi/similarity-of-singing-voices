@@ -41,22 +41,15 @@ def _():
     return (
         CSV_FOLDER,
         DATASET_FOLDER,
-        MODEL_FOLDER,
-        MelSpectrogramEncoder,
         PLOT_FOLDER,
         get_all_distance_differences,
-        get_global_distance_scores,
-        get_trimmed_audio,
-        load_singer_identity_model,
         load_survey_data,
         mo,
-        np,
         os,
-        pd,
         plot_correlation_bar,
         plot_correlation_scatter,
+        plt,
         scale_df,
-        torch,
     )
 
 
@@ -90,7 +83,7 @@ def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
             legend_loc="lower right",
         )
 
-    return PLOT_SAVE_DIR, plot_feature_correlation_scatter
+    return (plot_feature_correlation_scatter,)
 
 
 @app.cell
@@ -112,6 +105,45 @@ def _(CSV_PATHS, load_survey_data):
     answer_a_b_ratio = SURVEY_DATA["answer_a_b_ratio"]
     track_df = SURVEY_DATA["track_df"]
     return questions_df, track_df
+
+
+@app.cell
+def _(PLOT_FOLDER, os, plt, track_df):
+    fig1, (ax11, ax12) = plt.subplots(1, 2, figsize=(14, 7))
+
+    genre_counts_1 = track_df["genre_top"].value_counts()
+    ax11.pie(
+        genre_counts_1.values,
+        labels=[f"{label}: {count}" for label, count in genre_counts_1.items()],
+        autopct="%1.1f%%",
+        startangle=5,
+    )
+    ax11.set_title("Genre", fontsize=12, pad=10)
+
+    gender_counts_1 = track_df["pred_gender"].value_counts()
+    ax12.pie(
+        gender_counts_1.values,
+        labels=[f"{label}: {count}" for label, count in gender_counts_1.items()],
+        autopct="%1.1f%%",
+        startangle=0,
+    )
+    ax12.set_title("Gender", fontsize=12, pad=10)
+
+    fig1.suptitle(
+        f"Dataset Feature Distributions (Tracks: {len(track_df)})",
+        fontsize=16,
+        fontweight="bold",
+        y=1.02,
+    )
+
+    plt.tight_layout()
+    plt.savefig(
+        os.path.join(PLOT_FOLDER, "survey_2", "feature_distributions.png"),
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.show()
+    return
 
 
 @app.cell

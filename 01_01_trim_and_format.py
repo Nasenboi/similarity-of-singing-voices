@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.18.4"
+__generated_with = "0.23.10"
 app = marimo.App(width="medium")
 
 
@@ -100,6 +100,11 @@ def _(pd, tracks_df):
     fma.set_index("track_id", inplace=True)
     fma
     return (fma,)
+
+
+@app.cell
+def _():
+    return
 
 
 @app.cell(hide_code=True)
