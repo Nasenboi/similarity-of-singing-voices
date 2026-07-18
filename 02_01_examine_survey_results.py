@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
@@ -74,16 +74,14 @@ def _(CSV_PATHS, load_survey_data):
 
 
 @app.cell
-def _(questions_df):
-    # There should be no duplicate triplets in all questions_df
-    duplicates = questions_df.duplicated(subset=["X", "A", "B"], keep=False)
-    print(questions_df[duplicates])
+def _(participants_df):
+    participants_df[participants_df.surveyCompleted]
     return
 
 
 @app.cell
-def _(participants_df):
-    participants_df[participants_df.surveyCompleted]
+def _(questions_df):
+    questions_df[~questions_df.skip].num_answers.mean()
     return
 
 
@@ -154,6 +152,9 @@ def _(answers_df, participants_df, questions_df):
     Median completion time: {
         round(participants_df.completionMinutes.median())
     } minutes
+    Mean completion time: {
+        round(participants_df.completionMinutes.mean())
+    } minutes
 
     Total number of questions: {len(questions_df)} 
     Number of questions with no answers: {
@@ -223,12 +224,12 @@ def _(multi_answer_mask, pe, po, questions_df):
 
 @app.cell
 def _(multi_answer_mask, pe, po, questions_df, randomized_mask):
-    # agreement for max entropy questions:
+    # agreement for random questions:
     po_rand = questions_df[multi_answer_mask & randomized_mask].agreement.mean()
 
     kappa_rand = (po - pe) / (1 - pe)
     print(f"""
-    Number of questions of max entropy type: {len(questions_df[multi_answer_mask & randomized_mask])}
+    Number of questions of random type: {len(questions_df[multi_answer_mask & randomized_mask])}
     Answer agreement (po): {100 * po_rand:.1f}%
     Chance agreement (pe): {100 * pe:.1f}
     Cohen's Kappa:    {kappa_rand:.3f}

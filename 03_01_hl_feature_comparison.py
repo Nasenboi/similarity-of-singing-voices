@@ -1,13 +1,13 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
 @app.cell
 def _(mo):
     mo.md(r"""
-    # Import Python Packages
+    def # Import Python Packages
     """)
     return
 
@@ -28,13 +28,25 @@ def _():
     from speechbrain.inference.encoders import MelSpectrogramEncoder
 
     from src import load_singer_identity_model
-    from src.globals import (AUDIO_FOLDER, CSV_FOLDER, DATASET_FOLDER,
-                             MODEL_FOLDER, PLOT_FOLDER, STEMS_FOLDER,
-                             TRACKS_PATH, UVR_MODEL_PATH)
+    from src.globals import (
+        AUDIO_FOLDER,
+        CSV_FOLDER,
+        DATASET_FOLDER,
+        MODEL_FOLDER,
+        PLOT_FOLDER,
+        STEMS_FOLDER,
+        TRACKS_PATH,
+        UVR_MODEL_PATH,
+    )
     from src.statistics.feature_correlation import (
-        get_all_distance_differences, get_global_distance_scores, scale_df)
-    from src.statistics.plotting import (plot_correlation_bar,
-                                         plot_correlation_scatter)
+        get_all_distance_differences,
+        get_global_distance_scores,
+        scale_df,
+    )
+    from src.statistics.plotting import (
+        plot_correlation_bar,
+        plot_correlation_scatter,
+    )
     from src.survey_dataset_helpers import load_survey_data
     from src.utils import get_trimmed_audio
 
@@ -71,19 +83,9 @@ def _(CSV_FOLDER, DATASET_FOLDER, os):
 
 
 @app.cell
-def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
+def _(PLOT_FOLDER, os):
     PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
-
-    def plot_feature_correlation_scatter(feature_name: str, feature, target_feature=questions_df["A_perc"]):
-        plot_correlation_scatter(
-            title=f"{feature_name} Feature Correlation",
-            x=target_feature,
-            y=feature,
-            save_path=os.path.join(PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"),
-            legend_loc="lower right",
-        )
-
-    return (plot_feature_correlation_scatter,)
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell
@@ -114,7 +116,9 @@ def _(PLOT_FOLDER, os, plt, track_df):
     genre_counts_1 = track_df["genre_top"].value_counts()
     ax11.pie(
         genre_counts_1.values,
-        labels=[f"{label}: {count}" for label, count in genre_counts_1.items()],
+        labels=[
+            f"{label}: {count}" for label, count in genre_counts_1.items()
+        ],
         autopct="%1.1f%%",
         startangle=5,
     )
@@ -123,7 +127,9 @@ def _(PLOT_FOLDER, os, plt, track_df):
     gender_counts_1 = track_df["pred_gender"].value_counts()
     ax12.pie(
         gender_counts_1.values,
-        labels=[f"{label}: {count}" for label, count in gender_counts_1.items()],
+        labels=[
+            f"{label}: {count}" for label, count in gender_counts_1.items()
+        ],
         autopct="%1.1f%%",
         startangle=0,
     )
@@ -196,9 +202,22 @@ def _(
             "pred_age_no_trim",
         ],
     )
-    hl_distances = get_all_distance_differences(scaled_track_df, hl_features, questions_df)
+    hl_distances = get_all_distance_differences(
+        scaled_track_df, hl_features, questions_df
+    )
     hl_distances
     return (hl_distances,)
+
+
+@app.cell
+def _(hl_distances, plot_correlation_bar, questions_df):
+    plot_correlation_bar(
+        title="High Level Feature Correlations",
+        feature_df=hl_distances,
+        target_feature=questions_df["A_perc"],
+        top_x=len(hl_distances.columns),
+    )
+    return
 
 
 @app.cell
@@ -207,14 +226,14 @@ def _(hl_distances, plot_correlation_bar, questions_df):
         title="High Level Feature Correlations (Randomized)",
         feature_df=hl_distances[questions_df.randomized],
         target_feature=questions_df[questions_df.randomized]["A_perc"],
-        top_x=10,
+        top_x=len(hl_distances.columns),
     )
     return
 
 
 @app.cell
-def _(hl_distances, plot_feature_correlation_scatter):
-    plot_feature_correlation_scatter("Gender", hl_distances["pred_p_male"])
+def _(PLOT_SAVE_DIR, hl_distances, plot_correlation_scatter, questions_df):
+    plot_correlation_scatter(feature_name="Gender", x=questions_df["A_perc"], y=hl_distances["pred_gender"], plot_dir=PLOT_SAVE_DIR)
     return
 
 

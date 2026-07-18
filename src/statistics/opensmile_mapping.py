@@ -126,5 +126,5 @@ def convert_to_voice_quality_features(gemaps_df: pd.DataFrame, compare_df: pd.Da
                 failed_feats.append(feat)
 
     voice_quality_df = pd.DataFrame(columns, index=gemaps_df.index)
-    print(failed_feats)
+    # print(failed_feats)
     return voice_quality_df

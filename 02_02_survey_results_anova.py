@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
@@ -56,14 +56,12 @@ def _():
     return (
         CSV_FOLDER,
         DATASET_FOLDER,
-        PLOT_FOLDER,
         get_all_distance_differences,
         get_anova_values,
         get_answer_ratios,
         load_survey_data,
         mo,
         os,
-        plot_correlation_scatter,
         scale_df,
     )
 
@@ -83,27 +81,6 @@ def _(CSV_FOLDER, DATASET_FOLDER, os):
         ),
     }
     return (CSV_PATHS,)
-
-
-@app.cell
-def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
-    PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
-
-
-    def plot_feature_correlation_scatter(
-        feature_name: str, feature, target_feature=questions_df["A_perc"]
-    ):
-        plot_correlation_scatter(
-            title=f"{feature_name} Feature Correlation",
-            x=target_feature,
-            y=feature,
-            save_path=os.path.join(
-                PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"
-            ),
-            legend_loc="lower right",
-        )
-
-    return
 
 
 @app.cell

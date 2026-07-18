@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
@@ -44,7 +44,6 @@ def _():
         MODEL_FOLDER,
         MelSpectrogramEncoder,
         PLOT_FOLDER,
-        get_all_distance_differences,
         get_global_distance_scores,
         get_trimmed_audio,
         load_singer_identity_model,
@@ -78,19 +77,9 @@ def _(CSV_FOLDER, DATASET_FOLDER, os):
 
 
 @app.cell
-def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
+def _(PLOT_FOLDER, os):
     PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
-
-    def plot_feature_correlation_scatter(feature_name: str, feature, target_feature=questions_df["A_perc"]):
-        plot_correlation_scatter(
-            title=f"{feature_name} Feature Correlation",
-            x=target_feature,
-            y=feature,
-            save_path=os.path.join(PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"),
-            legend_loc="lower right",
-        )
-
-    return PLOT_SAVE_DIR, plot_feature_correlation_scatter
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell
@@ -165,7 +154,7 @@ def _(embedding_df, get_global_distance_scores, questions_df):
 @app.cell
 def _(embedding_gda_df, plot_correlation_bar, questions_df):
     plot_correlation_bar(
-        title="Ecapa Embeddings Correlations (Randomized)",
+        title="ECAPA-TDNN Embeddings Correlations (Randomized)",
         feature_df=embedding_gda_df[questions_df.randomized],
         target_feature=questions_df[questions_df.randomized]["A_perc"],
         top_x=10,
@@ -176,7 +165,7 @@ def _(embedding_gda_df, plot_correlation_bar, questions_df):
 @app.cell
 def _(embedding_gda_df, plot_correlation_bar, questions_df):
     plot_correlation_bar(
-        title="Ecapa Embeddings Correlations (Max Entropy)",
+        title="ECAPA-TDNN Embeddings Correlations (Max Entropy)",
         feature_df=embedding_gda_df[~questions_df.randomized],
         target_feature=questions_df[~questions_df.randomized]["A_perc"],
         top_x=10,
@@ -187,7 +176,7 @@ def _(embedding_gda_df, plot_correlation_bar, questions_df):
 @app.cell
 def _(embedding_gda_df, plot_correlation_bar, questions_df):
     plot_correlation_bar(
-        title="Ecapa Embeddings Correlations (All)",
+        title="ECAPA-TDNN Embeddings Correlations (All)",
         feature_df=embedding_gda_df,
         target_feature=questions_df["A_perc"],
         top_x=10,
@@ -196,8 +185,14 @@ def _(embedding_gda_df, plot_correlation_bar, questions_df):
 
 
 @app.cell
-def _(embedding_gda_df, plot_feature_correlation_scatter):
-    plot_feature_correlation_scatter("Ecapa Embeddings (Cosine Distance)", embedding_gda_df["distance_cosine"])
+def _(PLOT_SAVE_DIR, embedding_gda_df, plot_correlation_scatter, questions_df):
+    plot_correlation_scatter(
+        title="ECAPA-TDNN Embeddings (Cosine Distance)",
+        feature_name="ECAPA_Embeddings_Cosine",
+        y=embedding_gda_df["distance_cosine"],
+        x=questions_df["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
+    )
     return
 
 
@@ -283,6 +278,23 @@ def _(plot_correlation_bar, questions_df, sID_embedding_gda_df):
         feature_df=sID_embedding_gda_df,
         target_feature=questions_df["A_perc"],
         top_x=10,
+    )
+    return
+
+
+@app.cell
+def _(
+    PLOT_SAVE_DIR,
+    plot_correlation_scatter,
+    questions_df,
+    sID_embedding_gda_df,
+):
+    plot_correlation_scatter(
+        title="Singer ID Embeddings (Cosine Distance)",
+        feature_name="Singer_ID_Embeddings_Cosine",
+        y=sID_embedding_gda_df["distance_cosine"],
+        x=questions_df["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 

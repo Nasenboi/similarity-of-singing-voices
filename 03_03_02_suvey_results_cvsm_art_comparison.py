@@ -118,23 +118,9 @@ def _(CSV_PATHS, load_survey_data):
 
 
 @app.cell
-def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
+def _(PLOT_FOLDER, os):
     PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
-
-    def plot_feature_correlation_scatter(
-        feature_name: str, feature, target_feature=questions_df["A_perc"]
-    ):
-        plot_correlation_scatter(
-            title=f"{feature_name} Feature Correlation",
-            x=target_feature,
-            y=feature,
-            save_path=os.path.join(
-                PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"
-            ),
-            legend_loc="lower right",
-        )
-
-    return PLOT_SAVE_DIR, plot_feature_correlation_scatter
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell
@@ -299,10 +285,13 @@ def _(PLOT_SAVE_DIR, embedding_gda_df, os, plot_correlation_bar, questions_df):
 
 
 @app.cell
-def _(embedding_gda_df, plot_feature_correlation_scatter):
-    plot_feature_correlation_scatter(
-        "CVSM Embeddings (Canberra Distance)",
-        embedding_gda_df["distance_canberra"],
+def _(PLOT_SAVE_DIR, embedding_gda_df, plot_correlation_scatter, questions_df):
+    plot_correlation_scatter(
+        title="CVSM Embeddings (Canberra Distance)",
+        feature_name="CVSM_Embeddings_Canberra",
+        y=embedding_gda_df["distance_canberra"],
+        x=questions_df["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 

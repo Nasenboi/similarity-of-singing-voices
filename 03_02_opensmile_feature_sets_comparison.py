@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="medium")
 
 
@@ -92,24 +92,9 @@ def _(CSV_FOLDER, DATASET_FOLDER, os):
 
 
 @app.cell
-def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
+def _(PLOT_FOLDER, os):
     PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
-
-
-    def plot_feature_correlation_scatter(
-        feature_name: str, feature, target_feature=questions_df["A_perc"]
-    ):
-        plot_correlation_scatter(
-            title=f"{feature_name} Feature Correlation",
-            x=target_feature,
-            y=feature,
-            save_path=os.path.join(
-                PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"
-            ),
-            legend_loc="lower right",
-        )
-
-    return (plot_feature_correlation_scatter,)
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell
@@ -287,11 +272,11 @@ def _(gemaps_distances, plot_correlation_bar, questions_df):
 
 
 @app.cell
-def _(gemaps_distances, hl_distances, plot_correlation_bar):
+def _(gemaps_features_df, plot_correlation_bar, track_df):
     plot_correlation_bar(
         title="GeMAPS Feature Correlations (Speaker Gender)",
-        feature_df=gemaps_distances,
-        target_feature=hl_distances["pred_p_male"],
+        feature_df=gemaps_features_df,
+        target_feature=track_df["pred_p_male"],
         top_x=10,
     )
     return
@@ -306,8 +291,35 @@ def _(mo):
 
 
 @app.cell
-def _(questions_df):
-    questions_df["gender_distribution"].hist(bins=5)
+def _(np, plt, questions_df):
+    bins = [0, 0.25, 0.5, 0.75, 0.9, 1.0]
+    bin_labels = [
+        "Only Female Voices",
+        "Female Reference Voices, Male Target Voice",
+        "Mixed Reference Voices",
+        "Male Reference Voices, Female Target Voice",
+        "Only Male Voices",
+    ]
+    counts, bin_edges = np.histogram(
+        questions_df["gender_distribution"], bins=bins
+    )
+    plt.figure(figsize=(10, 4), dpi=150)
+    bars = plt.barh(bin_labels, counts, color="skyblue", edgecolor="black")
+    for bar in bars:
+        width = bar.get_width()
+        plt.text(
+            width + 0.5,
+            bar.get_y() + bar.get_height() / 2,
+            f"{int(width)}",
+            ha="left",
+            va="center",
+            fontsize=10,
+        )
+    plt.xlabel("Number of Questions")
+    # plt.ylabel("Gender Distribution Categories")
+    plt.title("Gender Distribution Counts in Survey")
+    plt.tight_layout()
+    plt.show()
     return
 
 
@@ -332,17 +344,20 @@ def _(gemaps_distances, gender_m_mask, plot_correlation_bar, questions_df):
 
 @app.cell
 def _(
+    PLOT_SAVE_DIR,
     gemaps_distances,
     gender_m_mask,
-    plot_feature_correlation_scatter,
+    plot_correlation_scatter,
     questions_df,
 ):
-    plot_feature_correlation_scatter(
-        "GeMAPS F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope (Male Only)",
-        gemaps_distances[gender_m_mask][
+    plot_correlation_scatter(
+        title="GeMAPS F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope (Male Only)",
+        feature_name="F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope",
+        y=gemaps_distances[gender_m_mask][
             "F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope"
         ],
-        questions_df[gender_m_mask]["A_perc"],
+        x=questions_df[gender_m_mask]["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 
@@ -360,25 +375,30 @@ def _(gemaps_distances, gender_f_mask, plot_correlation_bar, questions_df):
 
 @app.cell
 def _(
+    PLOT_SAVE_DIR,
     gemaps_distances,
     gender_f_mask,
-    plot_feature_correlation_scatter,
+    plot_correlation_scatter,
     questions_df,
 ):
-    plot_feature_correlation_scatter(
-        "GeMAPS StddevVoicedSegmentLengthSec (Female Only)",
-        gemaps_distances[gender_f_mask]["StddevVoicedSegmentLengthSec"],
-        questions_df[gender_f_mask]["A_perc"],
+    plot_correlation_scatter(
+        title="GeMAPS StddevVoicedSegmentLengthSec (Female Only)",
+        feature_name="StddevVoicedSegmentLengthSec",
+        y=gemaps_distances[gender_f_mask]["StddevVoicedSegmentLengthSec"],
+        x=questions_df[gender_f_mask]["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 
 
 @app.cell
-def _(gemaps_distances, plot_feature_correlation_scatter, questions_df):
-    plot_feature_correlation_scatter(
-        "GeMAPS F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope",
-        gemaps_distances["F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope"],
-        questions_df["A_perc"],
+def _(PLOT_SAVE_DIR, gemaps_distances, plot_correlation_scatter, questions_df):
+    plot_correlation_scatter(
+        title="GeMAPS F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope",
+        feature_name="F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope",
+        y=gemaps_distances["F0semitoneFrom27.5Hz_sma3nz_stddevRisingSlope"],
+        x=questions_df["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 
@@ -393,7 +413,9 @@ def _(mo):
 
 @app.cell
 def _(gemaps_features_df, get_global_distance_scores, questions_df):
-    gemaps_gda_df = get_global_distance_scores(gemaps_features_df, questions_df)
+    gemaps_gda_df = get_global_distance_scores(
+        gemaps_features_df, questions_df
+    )
     gemaps_gda_df
     return (gemaps_gda_df,)
 
@@ -410,10 +432,13 @@ def _(gemaps_gda_df, plot_correlation_bar, questions_df):
 
 
 @app.cell
-def _(gemaps_gda_df, plot_feature_correlation_scatter):
-    plot_feature_correlation_scatter(
-        "GeMAPS Feature Set (Canberra)",
-        gemaps_gda_df["distance_canberra"],
+def _(PLOT_SAVE_DIR, gemaps_gda_df, plot_correlation_scatter, questions_df):
+    plot_correlation_scatter(
+        title="GeMAPS Feature Set (Canberra)",
+        feature_name="Feature_Set_Canberra",
+        y=gemaps_gda_df["distance_canberra"],
+        x=questions_df["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 
@@ -453,7 +478,6 @@ def _(gemaps_features_df, np, questions_df):
 
         XAB_diff = abs(XB_diff) - abs(XA_diff)
         return XAB_diff
-
 
     gemaps_feature_differences = np.stack(
         questions_df.apply(get_feature_differences, axis=1)
@@ -499,8 +523,9 @@ def _(gemaps_feature_corr, np, smile_gemaps):
         else:
             reduced_selection.append(i)
 
-
-    reduced_feature_names = np.array(smile_gemaps.feature_names)[reduced_selection]
+    reduced_feature_names = np.array(smile_gemaps.feature_names)[
+        reduced_selection
+    ]
     len(reduced_feature_names)
     return reduced_feature_names, reduced_selection
 
@@ -549,7 +574,6 @@ def _(
 
         return final_model, current_features, removed_features
 
-
     final_model, selected_features, removed = backward_stepwise_regression(
         gemaps_feature_differences[:, reduced_selection],
         questions_df["A_perc"].values,
@@ -559,7 +583,7 @@ def _(
     print(
         f"Selected features: {[str(reduced_feature_names[i]) for i in selected_features]}"
     )
-    return final_model, selected_features
+    return
 
 
 @app.cell
@@ -604,33 +628,14 @@ def _():
 
 
 @app.cell
-def _(final_model, pd, reduced_feature_names, selected_features):
-    pd.DataFrame(
-        {
-            feature: {
-                "coef": final_model.params[i + 1],
-                "std_err": final_model.bse[i + 1],
-                "t": final_model.tvalues[i + 1],
-                "p_value": final_model.pvalues[i + 1],
-                "ci_lower": final_model.conf_int()[i + 1][0],
-                "ci_upper": final_model.conf_int()[i + 1][1],
-                "coef_abs": abs(final_model.params[i + 1]),
-            }
-            for i, feature in enumerate(
-                [reduced_feature_names[i] for i in selected_features]
-            )
-        }
-    ).T
-    return
-
-
-@app.cell
-def _():
-    return
-
-
-@app.cell
-def _():
+def _(PLOT_SAVE_DIR, gemaps_distances, plot_correlation_scatter, questions_df):
+    plot_correlation_scatter(
+        title="GeMAPS F0semitoneFrom27.5Hz_sma3nz_meanRisingSlope",
+        feature_name="F0semitoneFrom27.5Hz_sma3nz_meanRisingSlope",
+        y=gemaps_distances["F0semitoneFrom27.5Hz_sma3nz_meanRisingSlope"],
+        x=questions_df["A_perc"],
+        plot_dir=PLOT_SAVE_DIR,
+    )
     return
 
 
@@ -728,7 +733,9 @@ def _(mo):
 
 @app.cell
 def _(compare_features_df, get_global_distance_scores, questions_df):
-    compare_gda_df = get_global_distance_scores(compare_features_df, questions_df)
+    compare_gda_df = get_global_distance_scores(
+        compare_features_df, questions_df
+    )
     compare_gda_df
     return (compare_gda_df,)
 
@@ -745,10 +752,13 @@ def _(compare_gda_df, plot_correlation_bar, questions_df):
 
 
 @app.cell
-def _(compare_gda_df, plot_feature_correlation_scatter):
-    plot_feature_correlation_scatter(
-        "ComParE Feature Set (Cosine)",
-        compare_gda_df["distance_cosine"],
+def _(PLOT_SAVE_DIR, compare_gda_df, plot_correlation_scatter, questions_df):
+    plot_correlation_scatter(
+        title="ComParE Feature Set (Cosine)",
+        feature_name="ComParE_Feature_Set_Cosine",
+        x=questions_df["A_perc"],
+        y=compare_gda_df["distance_cosine"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 
@@ -794,7 +804,9 @@ def _(
         remove_on_exit=True,
     ):
         vq_distance_diff_df[vq_feature] = questions_df.apply(
-            lambda x: get_distance_row(x, voice_quality_df[vq_feature], "cosine"),
+            lambda x: get_distance_row(
+                x, voice_quality_df[vq_feature], "cosine"
+            ),
             axis=1,
         )
     vq_distance_diff_df
@@ -804,7 +816,7 @@ def _(
 @app.cell
 def _(plot_correlation_bar, questions_df, vq_distance_diff_df):
     plot_correlation_bar(
-        title="Voice Quality Features Comparison",
+        title="Correlation of Voice Quality Features with Subjective Similarity Ratings",
         feature_df=vq_distance_diff_df,
         target_feature=questions_df["A_perc"],
         top_x=10,
@@ -829,18 +841,15 @@ def _(
 
 
 @app.cell
-def _(
-    gender_mixed_mask,
-    plot_correlation_bar,
-    questions_df,
-    vq_distance_diff_df,
-):
+def _():
+    """
     plot_correlation_bar(
         title="Voice Quality Features Comparison (Mixed Gender)",
         feature_df=vq_distance_diff_df[gender_mixed_mask],
         target_feature=questions_df[gender_mixed_mask]["A_perc"],
         top_x=10,
     )
+    """
     return
 
 

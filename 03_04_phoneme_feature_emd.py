@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.23.10"
+__generated_with = "0.23.14"
 app = marimo.App(width="full")
 
 
@@ -70,24 +70,10 @@ def _():
 
 
 @app.cell
-def _(PLOT_FOLDER, os, plot_correlation_scatter, questions_df):
+def _(PLOT_FOLDER, os):
     PLOT_SAVE_DIR = os.path.join(PLOT_FOLDER, "survey_2")
 
-
-    def plot_feature_correlation_scatter(
-        feature_name: str, feature, target_feature=questions_df["A_perc"]
-    ):
-        plot_correlation_scatter(
-            title=f"{feature_name} Feature Correlation",
-            x=target_feature,
-            y=feature,
-            save_path=os.path.join(
-                PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"
-            ),
-            legend_loc="lower right",
-        )
-
-    return (plot_feature_correlation_scatter,)
+    return (PLOT_SAVE_DIR,)
 
 
 @app.cell(hide_code=True)
@@ -317,8 +303,19 @@ def _(mfcc_emd_distance_diff_df, plot_correlation_bar, questions_df):
 
 
 @app.cell
-def _(mfcc_emd_distance_diff_df, plot_feature_correlation_scatter):
-    plot_feature_correlation_scatter("MFCC 4", mfcc_emd_distance_diff_df["mfcc_4"])
+def _(
+    PLOT_SAVE_DIR,
+    mfcc_emd_distance_diff_df,
+    plot_correlation_scatter,
+    questions_df,
+):
+    plot_correlation_scatter(
+        title="MFCC 4th Coefficient",
+        feature_name="MFCC_4th_Coedd",
+        x=questions_df["A_perc"],
+        y=mfcc_emd_distance_diff_df["mfcc_4"],
+        plot_dir=PLOT_SAVE_DIR,
+    )
     return
 
 
@@ -398,7 +395,7 @@ def _(
     questions_df,
 ):
     plot_correlation_bar(
-        title="GeMAPS Feature Correlations (Male only)",
+        title="MFCC EMD Feature Correlations (Male only)",
         feature_df=mfcc_emd_distance_diff_df[gender_m_mask],
         target_feature=questions_df[gender_m_mask]["A_perc"],
         top_x=10,
@@ -414,7 +411,7 @@ def _(
     questions_df,
 ):
     plot_correlation_bar(
-        title="GeMAPS Feature Correlations (Female only)",
+        title="MFCC EMD Feature Correlations (Female only)",
         feature_df=mfcc_emd_distance_diff_df[gender_f_mask],
         target_feature=questions_df[gender_f_mask]["A_perc"],
         top_x=10,
@@ -430,7 +427,7 @@ def _(
     questions_df,
 ):
     plot_correlation_bar(
-        title="GeMAPS Feature Correlations (Mixed Gender)",
+        title="MFCC EMD Feature Correlations (Mixed Gender)",
         feature_df=mfcc_emd_distance_diff_df[gender_mixed_mask],
         target_feature=questions_df[gender_mixed_mask]["A_perc"],
         top_x=10,
@@ -550,9 +547,19 @@ def _(mel_emd_distance_diff_df, plot_correlation_bar, questions_df):
 
 
 @app.cell
-def _(mel_centers, mel_emd_distance_diff_df, plot_feature_correlation_scatter):
-    plot_feature_correlation_scatter(
-        f"Mel 4th Band ({mel_centers[4]:.1f} Hz)", mel_emd_distance_diff_df["mel_4"]
+def _(
+    PLOT_SAVE_DIR,
+    mel_centers,
+    mel_emd_distance_diff_df,
+    plot_correlation_scatter,
+    questions_df,
+):
+    plot_correlation_scatter(
+        title=f"Mel 4th Band ({mel_centers[4]:.1f} Hz)",
+        feature_name="Mel_4th_Band",
+        x=questions_df["A_perc"],
+        y=mel_emd_distance_diff_df["mel_4"],
+        plot_dir=PLOT_SAVE_DIR,
     )
     return
 

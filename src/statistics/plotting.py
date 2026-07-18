@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy import stats
-
+import os
 
 def plot_model_train_results(
     test_loss,
@@ -96,7 +96,7 @@ def plot_scores(
             linestyle=":",
             color="green",
             alpha=1.0,
-            label=f"Human Baseline = {target_feature:.3f}",
+            label=f"Subjective Similarity Ratings = {target_feature:.3f}",
         )
 
     if random_chance is not None or target_feature is not None:
@@ -115,7 +115,7 @@ def plot_correlation_bar(
     feature_df,
     target_feature,
     top_x: int = 15,
-    title: str = "Feature Correlations with Human Baseline",
+    title: str = "Feature Correlations with Subjective Similarity Ratings",
     xlabel: str = "Pearson r",
     save_path: str = None,
 ):
@@ -129,7 +129,7 @@ def plot_correlation_bar(
         r, p = stats.pearsonr(vals[mask], baseline[mask])
         records.append({"feature": col, "r": r, "p_value": p, "n": mask.sum()})
 
-    corr_df = pd.DataFrame(records).assign(abs_r=lambda d: d["r"].abs()).nlargest(top_x, "abs_r").sort_values("r")
+    corr_df = pd.DataFrame(records).nlargest(top_x, "r").sort_values("r")
 
     colors = ["#C44E52" if r < 0 else "#4C72B0" for r in corr_df["r"]]
 
@@ -180,15 +180,36 @@ def plot_correlation_bar(
     plt.show()
 
 
+"""
+    plot_correlation_scatter(
+        title=f"{feature_name} Feature Correlation with Subjective Ratings",
+        x=target_feature,
+        y=feature,
+        save_path=os.path.join(
+            PLOT_SAVE_DIR, f"questions_{feature_name}_correlation.png"
+        ),
+        legend_loc="lower right",
+    )
+"""
+
 def plot_correlation_scatter(
     x,
     y,
-    title: str = "Feature Correlation",
-    xlabel: str = "Human Baseline",
-    ylabel: str = "Features",
+    feature_name: str = None,
+    title: str = None,
+    xlabel: str = "Subjective Similarity Ratings",
+    ylabel: str = "Feature Similarity Ratings",
+    plot_dir: str = None,
     save_path: str = None,
-    legend_loc: str = "best",
+    legend_loc: str = "lower right",
 ):
+    if title is None:
+        title = f"{feature_name} Feature Correlation"
+    if save_path is None and plot_dir is not None and feature_name is not None:
+        save_path = os.path.join(
+            plot_dir, f"questions_{feature_name}_correlation.png"
+        )
+
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
 
@@ -221,24 +242,24 @@ def plot_correlation_scatter(
     )
 
     n = len(x)
-    x_mean = x.mean()
-    se = np.sqrt(
-        np.sum((y - (slope * x + intercept)) ** 2)
-        / (n - 2)
-        * (1 / n + (x_line - x_mean) ** 2 / np.sum((x - x_mean) ** 2))
-    )
-    t_crit = stats.t.ppf(0.975, df=n - 2)
-    ax.fill_between(
-        x_line,
-        y_line - t_crit * se,
-        y_line + t_crit * se,
-        color="#C44E52",
-        alpha=0.12,
-        label="95 % CI",
-        zorder=2,
-    )
+    # x_mean = x.mean()
+    # se = np.sqrt(
+    #     np.sum((y - (slope * x + intercept)) ** 2)
+    #     / (n - 2)
+    #     * (1 / n + (x_line - x_mean) ** 2 / np.sum((x - x_mean) ** 2))
+    # )
+    # t_crit = stats.t.ppf(0.975, df=n - 2)
+    # ax.fill_between(
+    #     x_line,
+    #     y_line - t_crit * se,
+    #     y_line + t_crit * se,
+    #     color="#C44E52",
+    #     alpha=0.12,
+    #     label="95 % CI",
+    #     zorder=2,
+    # )
 
-    stats_text = f"Pearson r = {r:.3f}\np-value  = {p_value:.2e}\nn        = {n}"
+    stats_text = f"Pearson r = {r:.3f}\nR2 = {(r*r):.3f}\np-value  = {p_value:.2e}\nn        = {n}"
     ax.text(
         0.05,
         0.95,

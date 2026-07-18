@@ -159,12 +159,26 @@ def get_gender_distribution(row, track_df):
 
 # -- dataset converters --
 
+def load_answers_df(csv_path: str):
+    """Create the survey answers df from the survey results
+
+    Args:
+        csv_path (str): Path to the survey csv
+
+    Returns:
+        pd.DataFrame: The survey answers dataframe
+    """
+    surveyAnswers = pd.read_csv(csv_path, index_col="_id")
+    surveyAnswers["editDate"] = parse_js_date(surveyAnswers["editDate"])
+    surveyAnswers["createDate"] = parse_js_date(surveyAnswers["createDate"])
+    return surveyAnswers
 
 def load_questions_df(csv_path: str, answers_df):
     """Create the survey questions df from the survey results
 
     Args:
         csv_path (str): Path to the survey csv
+        answers_df (pd.DataFrame): The answers data frame
 
     Returns:
         pd.DataFrame: The survey questions dataframe
@@ -174,15 +188,18 @@ def load_questions_df(csv_path: str, answers_df):
     surveyQuestions[["num_answers", "A_perc", "B_perc", "agreement", "instruments_on"]] = (
         surveyQuestions.index.to_series().apply(lambda x: get_answer_ratios(x, answers_df))
     )
+    surveyQuestions["editDate"] = parse_js_date(surveyQuestions["editDate"])
+    surveyQuestions["createDate"] = parse_js_date(surveyQuestions["createDate"])
     surveyQuestions.dropna(axis=0, inplace=True)
     return surveyQuestions
 
 
-def load_participant_df(csv_path: str):
+def load_participant_df(csv_path: str, answers_df: pd.DataFrame):
     """Create the participant df from the survey results
 
     Args:
         csv_path (str): Path to the survey csv
+        answers_df (pd.DataFrame): The answers data frame
 
     Returns:
         pd.DataFrame: The participant dataframe
@@ -190,11 +207,14 @@ def load_participant_df(csv_path: str):
     participants = pd.read_csv(csv_path, index_col="_id")
     participants["editDate"] = parse_js_date(participants["editDate"])
     participants["createDate"] = parse_js_date(participants["createDate"])
-    participants[participants.surveyCompleted]
-    participants["completionTime"] = participants["editDate"] - participants["createDate"]
+    start_time = participants["createDate"]
+    end_time = participants.index.to_series().apply(
+        lambda x: answers_df[answers_df.participantID == x].editDate.max()
+    )
+    participants["completionTime"] = end_time - start_time 
     participants["completionMinutes"] = participants["completionTime"].dt.total_seconds() / 60
     participants["gmsi_active_engagement"] = participants.apply(calc_gmsi_active_engagement_value, axis=1)
-    return participants
+    return participants # [participants.surveyCompleted]
 
 
 def load_survey_data(csv_paths: dict):
@@ -209,8 +229,8 @@ def load_survey_data(csv_paths: dict):
     survey_data = {}
 
     survey_data["songs_df"] = pd.read_csv(csv_paths["songs"], index_col="_id")
-    survey_data["answers_df"] = pd.read_csv(csv_paths["answers"], index_col="_id")
-    survey_data["participants_df"] = load_participant_df(csv_paths["participants"])
+    survey_data["answers_df"] = load_answers_df(csv_paths["answers"])
+    survey_data["participants_df"] = load_participant_df(csv_paths["participants"], survey_data["answers_df"])
     survey_data["questions_df"] = load_questions_df(csv_paths["questions"], survey_data["answers_df"])
 
     if csv_paths.get("tracks") is not None:
